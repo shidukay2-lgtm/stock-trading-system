@@ -36,7 +36,8 @@ class StockScreener:
         results = []
         for s in GROWTH_SMALL_CAP_SYMBOLS:
             # 投資額チェック
-            if s["lot_investment_approx"] > max_investment:
+            lot_inv = s.get("lot_investment_approx", 0.0)
+            if lot_inv > max_investment:
                 continue
             
             # 売上成長率パース

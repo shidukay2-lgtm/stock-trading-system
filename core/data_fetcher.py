@@ -62,68 +62,68 @@ class StockDataFetcher:
         # 1. キャッシュ確認
         cached_df = pd.DataFrame()
         if self.use_cache:
-            cached_df = db.load_candles(formatted_symbol, interval=interval)
+            try:
+                cached_df = db.load_candles(formatted_symbol, interval=interval)
+            except Exception as e:
+                if show_cool_ui:
+                    console.print(f"[yellow][WARN] キャッシュ読み込みエラー: {e}[/yellow]")
 
-        if len(cached_df) >= target_candles:
-            if show_cool_ui:
-                console.print(f"[bold green][OK][/bold green] ローカルデータベース(SQLite)から高速ロード完了: [cyan]{len(cached_df)}本[/cyan] のキャッシュ済みローソク足を使用")
-            df = cached_df.tail(target_candles)
-            if show_cool_ui:
-                self.display_cool_summary(df, symbol_info)
-            return df
+        yf_interval = "60m" if interval in ["60m", "1h"] else interval
 
-        # 2. yfinanceから取得
-        # yfinanceの60m足は過去730日（約2年間）まで取得可能
-        # 日本の取引時間は1日5時間(9:00-11:30, 12:30-15:00/15:30) = 5〜6バー/日
-        # 1000本は概ね200営業日（約10ヶ月分）で十分カバー可能
+        # 2. キャッシュの有無に応じた取得戦略
+        # - キャッシュが十分（100本以上）ある場合: 直近数日分 (period="5d") のみ差分取得して高速マージ
+        # - キャッシュがない/不足している場合: 過去730日分 (period="730d") をフル取得
+        need_full_fetch = cached_df.empty or len(cached_df) < 100
+        fetch_period = "730d" if need_full_fetch else "5d"
+
         df = pd.DataFrame()
         try:
-            with Progress(
-                SpinnerColumn(spinner_name="dots", style="bold cyan"),
-                TextColumn("[bold bright_white]{task.description}[/bold bright_white]"),
-                BarColumn(bar_width=40, complete_style="green", finished_style="bold green"),
-                TaskProgressColumn(),
-                TimeRemainingColumn(),
-                console=console
-            ) as progress:
-                fetch_task = progress.add_task(f"[cyan]JPX (東証) から {symbol_info['name']} の1h足ローソク足を取得中...", total=100)
-                
-                progress.update(fetch_task, advance=20)
+            if show_cool_ui:
+                desc = f"[cyan]JPX (東証) から {symbol_info['name']} の1h足{'全体' if need_full_fetch else '最新差分'}を取得中..."
+                with Progress(
+                    SpinnerColumn(spinner_name="dots", style="bold cyan"),
+                    TextColumn("[bold bright_white]{task.description}[/bold bright_white]"),
+                    BarColumn(bar_width=40, complete_style="green", finished_style="bold green"),
+                    TaskProgressColumn(),
+                    TimeRemainingColumn(),
+                    console=console
+                ) as progress:
+                    fetch_task = progress.add_task(desc, total=100)
+                    progress.update(fetch_task, advance=30)
+                    
+                    ticker = yf.Ticker(formatted_symbol)
+                    raw_df = ticker.history(period=fetch_period, interval=yf_interval)
+                    progress.update(fetch_task, advance=50)
+
+                    if (raw_df is None or raw_df.empty) and need_full_fetch:
+                        raw_df = ticker.history(period="2y", interval="1d" if interval == "1d" else "60m")
+
+                    progress.update(fetch_task, completed=100)
+            else:
                 ticker = yf.Ticker(formatted_symbol)
-                
-                # 60m足で730日前から取得
-                progress.update(fetch_task, advance=40, description=f"[cyan]データダウンロード & 解析中...[/cyan]")
-                
-                # yfinance interval check
-                yf_interval = "60m" if interval in ["60m", "1h"] else interval
-                
-                raw_df = ticker.history(period="730d", interval=yf_interval)
-                progress.update(fetch_task, advance=30)
-
-                if raw_df is None or raw_df.empty:
-                    # フォールバック: 日足または最大期間でリトライ
+                raw_df = ticker.history(period=fetch_period, interval=yf_interval)
+                if (raw_df is None or raw_df.empty) and need_full_fetch:
                     raw_df = ticker.history(period="2y", interval="1d" if interval == "1d" else "60m")
-
-                progress.update(fetch_task, advance=10, completed=100)
 
             if raw_df is not None and not raw_df.empty:
                 # 必要なカラムを抽出 & タイムゾーン調整
-                df = raw_df[["Open", "High", "Low", "Close", "Volume"]].copy()
-                df.dropna(inplace=True)
+                new_df = raw_df[["Open", "High", "Low", "Close", "Volume"]].copy()
+                new_df.dropna(inplace=True)
                 
                 # タイムゾーンを日本時間に統一
-                if df.index.tz is not None:
-                    df.index = df.index.tz_convert("Asia/Tokyo")
-                
-                # DBにキャッシュ保存
-                db.save_candles(df, formatted_symbol, interval=interval)
-                
+                if new_df.index.tz is not None:
+                    new_df.index = new_df.index.tz_convert("Asia/Tokyo")
+
+                # DBに保存（INSERT OR REPLACE でマージ）
+                db.save_candles(new_df, formatted_symbol, interval=interval)
+
+                # DBから最新の統合データを読み込み
+                df = db.load_candles(formatted_symbol, interval=interval)
                 if show_cool_ui:
-                    console.print(f"[bold green][OK] 取得成功![/bold green] [bold cyan]{len(df)}[/bold cyan] 本のローソク足データを保存しました。")
+                    console.print(f"[bold green][OK] 取得成功![/bold green] 最新ローソク足 (現在 {len(df)} 本蓄積) を更新しました。")
             else:
                 if show_cool_ui:
-                    console.print(f"[bold yellow][WARN] yfinanceからのデータが空です。擬似または既存データを確認します。[/bold yellow]")
-                # キャッシュがあればそれを使う
+                    console.print(f"[bold yellow][WARN] yfinanceからの最新データが空です。既存キャッシュを使用します。[/bold yellow]")
                 df = cached_df
 
         except Exception as e:
@@ -132,7 +132,7 @@ class StockDataFetcher:
             if not cached_df.empty:
                 df = cached_df
 
-        # 目標本数にトリミング、またはデータが足りない場合は既存分を返す
+        # 目標本数にトリミング
         if not df.empty:
             result_df = df.tail(target_candles)
             if show_cool_ui:

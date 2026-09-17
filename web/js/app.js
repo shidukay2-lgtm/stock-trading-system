@@ -17,6 +17,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     let refreshCountdown = 30;
     let isRefreshing = false;
 
+    function renderAllUI() {
+        if (!symbolsData || !symbolsData.symbols) return;
+
+        // 初期選択銘柄の調整（選択中の銘柄が存在しない場合は先頭銘柄）
+        const keys = Object.keys(symbolsData.symbols);
+        if (keys.length > 0 && (!currentSymbolCode || !symbolsData.symbols[currentSymbolCode])) {
+            currentSymbolCode = keys[0];
+        }
+
+        updateMarketStatusHeader();
+        renderSymbolSelector();
+        updateGlobalSignalTicker();
+        selectSymbol(currentSymbolCode);
+        renderPositionsTable();
+        renderTradesTable();
+        renderSummaryKPIs();
+    }
+
     // --- 1. データロード (API優先 / 静的JSONフォールバック) ---
     async function loadData(showLoadingIndicator = false) {
         if (isRefreshing && !showLoadingIndicator) return;
@@ -57,20 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             btnRefreshText.innerText = "今すぐ相場更新";
         }
 
-        // 初期選択銘柄の調整（選択中の銘柄が存在しない場合は先頭銘柄）
-        const keys = Object.keys(symbolsData.symbols);
-        if (keys.length > 0 && (!currentSymbolCode || !symbolsData.symbols[currentSymbolCode])) {
-            currentSymbolCode = keys[0];
-        }
-
-        // UI全体描画
-        updateMarketStatusHeader();
-        renderSymbolSelector();
-        updateGlobalSignalTicker();
-        selectSymbol(currentSymbolCode);
-        renderPositionsTable();
-        renderTradesTable();
-        renderSummaryKPIs();
+        renderAllUI();
     }
 
     // --- 2. 東証市場ステータスの反映 ---
@@ -496,18 +501,29 @@ document.addEventListener("DOMContentLoaded", async () => {
             try {
                 const res = await fetch("/api/refresh-now", { method: "POST" });
                 if (res.ok) {
-                    symbolsData = await res.json();
+                    const data = await res.json();
+                    if (data && data.symbols) {
+                        symbolsData = data;
+                        renderAllUI();
+                        refreshCountdown = 30;
+                        btnText.innerText = "今すぐ相場更新";
+                        return;
+                    }
                 }
             } catch (e) {
                 console.warn("手動更新エラー:", e);
             }
-            loadData(true);
+            await loadData(true);
         });
     }
 
     // 30秒ごとの自動更新
     setInterval(() => {
         refreshCountdown -= 1;
+        const btnText = document.getElementById("btn-refresh-text");
+        if (btnText && !isRefreshing) {
+            btnText.innerText = refreshCountdown <= 5 ? `更新まで ${refreshCountdown}s` : "今すぐ相場更新";
+        }
         if (refreshCountdown <= 0) {
             loadData(false);
             refreshCountdown = 30;

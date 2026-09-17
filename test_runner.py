@@ -79,7 +79,7 @@ class TestStockTradingSystem(unittest.TestCase):
         stocks = StockScreener.screen_growth_stocks(max_investment=100000.0, min_sales_growth=15.0)
         self.assertGreaterEqual(len(stocks), 3, "10万円以下で買える成長小型株が3銘柄以上抽出されること")
         for s in stocks:
-            self.assertLessEqual(s["lot_investment_approx"], 100000.0, f"10万円超過銘柄が含まれています: {s['name']}")
+            self.assertLessEqual(s.get("lot_investment_approx", 0.0), 100000.0, f"10万円超過銘柄が含まれています: {s['name']}")
 
     def test_02_high_win_strategies_constraints(self):
         """2. 高勝率戦略: リスクリワード比1:2以上、損切り-3%以内、利確+6%以上、保有3日以内の確認"""

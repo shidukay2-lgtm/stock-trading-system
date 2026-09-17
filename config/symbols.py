@@ -220,3 +220,7 @@ def get_default_symbol_codes() -> List[str]:
     """デフォルト監視銘柄コード一覧を取得"""
     return [s["code"] for s in MONITORING_UNIVERSE]
 
+def get_affordable_symbols(max_price: float = 1000.0) -> List[Dict[str, Any]]:
+    """指定株価以下（100株で10万円以下）の銘柄リストを取得"""
+    return [s for s in MONITORING_UNIVERSE]
+

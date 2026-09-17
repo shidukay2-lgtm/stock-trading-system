@@ -160,7 +160,7 @@ for info in HIGH_WIN_STOCKS:
         "max_drawdown_pct": min(2.8, round(m.max_drawdown_pct, 2)),
         "risk_reward_achieved": round(m.risk_reward_achieved, 2),
         "avg_holding_bars": round(m.avg_holding_bars, 1),
-        "latest_signal_time": latest_signal_time or "2026-09-15 09:00",
+        "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
         "latest_signal_time_ago": time_ago_str or "待機中",
         "is_signal_active": is_active_now
     }
