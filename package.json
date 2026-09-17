@@ -1,0 +1,20 @@
+{
+  "name": "stock-trading-system",
+  "version": "1.0.0",
+  "description": "HighWin_TripleConfluence搭載 日本株小型成長株スイングトレードWebダッシュボード",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm install && (pip3 install -r requirements.txt || pip install -r requirements.txt || true) && (python3 server/market_monitor.py || python server/market_monitor.py || true)",
+    "monitor": "node server.js"
+  },
+  "keywords": [
+    "stock-trading",
+    "swing-trading",
+    "technical-analysis",
+    "high-win-rate",
+    "render-deploy"
+  ],
+  "author": "shidukay2-lgtm",
+  "license": "MIT"
+}

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HighWin スイングトレード Webダッシュボード | 東証小型成長株</title>
+    <meta name="description" content="HighWin_TripleConfluence戦略を搭載した、日本株（東証小型成長株）向けスイングトレード自動シグナル検知＆手動リアルトレード支援ダッシュボード。">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ヘッダー -->
+    <header class="header">
+        <div class="logo-area">
+            <div class="logo-icon">📈</div>
+            <div>
+                <h1 class="logo-title">HighWin Trade System</h1>
+                <p class="logo-subtitle">東証小型成長株 / 10万円以下 / NISA現物 / 3日以内決済</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" id="btn-manual-refresh-now" style="padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px; border-color: var(--primary);">
+                🔄 <span id="btn-refresh-text">今すぐ相場更新</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-open-notify-settings" style="padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                🔔 通知設定
+            </button>
+            <div class="header-status" id="header-market-badge">
+                <div class="status-dot"></div>
+                <span id="header-market-status-text">リアルタイム監視中</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        
+        <!-- 全銘柄リアルタイムシグナル監視ステータスバー (未選択時でも一目でわかる) -->
+        <section class="signals-summary-ticker" id="signals-summary-ticker">
+            <div class="ticker-left">
+                <span class="ticker-badge-live" id="ticker-live-badge">
+                    <span class="ticker-pulse-dot"></span>
+                    <span id="ticker-session-label">リアルタイム監視</span>
+                </span>
+                <span class="ticker-text" id="ticker-status-text">東証小型成長株を監視中...</span>
+                <span style="font-size: 11px; color: var(--text-dim);" id="ticker-time-text"></span>
+            </div>
+            <div id="ticker-active-symbols" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <!-- 点灯中銘柄のクイックリンクが動的に挿入される -->
+            </div>
+        </section>
+        
+        <!-- 通算 KPI サマリー -->
+        <section class="kpi-grid">
+            <div class="kpi-card">
+                <span class="kpi-label">通算トレード数</span>
+                <span class="kpi-val" id="kpi-total-trades">0 回</span>
+                <span class="kpi-sub">リアル & バックテスト</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">勝率 (Win Rate)</span>
+                <span class="kpi-val val-green" id="kpi-winrate">0.0%</span>
+                <span class="kpi-sub">目標: 70% 水準</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">通算実現損益</span>
+                <span class="kpi-val val-cyan" id="kpi-total-pnl">¥0</span>
+                <span class="kpi-sub">NISA非課税運用</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">プロフィットファクター</span>
+                <span class="kpi-val val-yellow" id="kpi-pf">0.00</span>
+                <span class="kpi-sub">基準: 1.5以上で優秀</span>
+            </div>
+        </section>
+
+        <!-- 銘柄セレクター (10万円以下成長小型株) -->
+        <section class="symbols-carousel-wrap">
+            <div class="section-label">⚡ 監視銘柄セレクター (10万円以内 成長小型株)</div>
+            <div class="symbols-list" id="symbols-list">
+                <!-- JSで動的生成 -->
+            </div>
+        </section>
+
+        <!-- リアルタイム シグナル通知ハイライトカード -->
+        <section id="signal-banner" class="signal-alert-banner">
+            <!-- JSで動的更新 -->
+        </section>
+
+        <!-- メイングリッド (チャート & ファンダメンタルズ/操作パネル) -->
+        <div class="main-grid">
+            
+            <!-- チャートカード -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">📊 1時間足 インタラクティブチャート (EMA10/25・MACD・RSI)</h2>
+                    <span class="chip-badge">時間軸: 1h / 損切 -2.5% / 利確 +6%</span>
+                </div>
+                <div id="main-chart-container" style="width: 100%; height: 550px;"></div>
+            </div>
+
+            <!-- ファンダメンタルズ & バックテスト実績カード -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">🔍 銘柄ファンダメンタルズ</h2>
+                    <span class="chip-badge" id="fund-market">東証グロース</span>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div>
+                        <div style="font-size: 18px; font-weight: 700; color: var(--text-main);" id="fund-name">BASE (4477.T)</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;" id="fund-desc">個人・小規模事業者向けECプラットフォーム。</div>
+                    </div>
+
+                    <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                            <span style="color: var(--text-muted);">売上高成長率:</span>
+                            <span style="font-weight: 700; color: var(--accent-green);" id="fund-growth">+24.5%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                            <span style="color: var(--text-muted);">時価総額:</span>
+                            <span style="font-weight: 600;" id="fund-cap">380億円</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                            <span style="color: var(--text-muted);">収益基調:</span>
+                            <span style="font-weight: 600; color: var(--accent-amber);" id="fund-profit">黒字化・高成長</span>
+                        </div>
+                    </div>
+
+                    <div class="card-header" style="margin-top: 8px; margin-bottom: 8px;">
+                        <h3 style="font-size: 14px; font-weight: 700; color: var(--primary);">📈 過去相場バックテスト実績</h3>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="background: rgba(0,229,255,0.05); border: 1px solid var(--border-glow); padding: 10px; border-radius: var(--radius-sm);">
+                            <div style="font-size: 11px; color: var(--text-muted);">勝率</div>
+                            <div style="font-size: 18px; font-weight: 800; color: var(--accent-green);" id="backtest-winrate">65.0%</div>
+                        </div>
+                        <div style="background: rgba(0,229,255,0.05); border: 1px solid var(--border-glow); padding: 10px; border-radius: var(--radius-sm);">
+                            <div style="font-size: 11px; color: var(--text-muted);">PF (収益倍率)</div>
+                            <div style="font-size: 18px; font-weight: 800; color: var(--accent-amber);" id="backtest-pf">2.17</div>
+                        </div>
+                        <div style="background: rgba(0,229,255,0.05); border: 1px solid var(--border-glow); padding: 10px; border-radius: var(--radius-sm);">
+                            <div style="font-size: 11px; color: var(--text-muted);">トータル利益</div>
+                            <div style="font-size: 16px; font-weight: 800; color: var(--accent-green);" id="backtest-pnl">+¥17,582</div>
+                        </div>
+                        <div style="background: rgba(0,229,255,0.05); border: 1px solid var(--border-glow); padding: 10px; border-radius: var(--radius-sm);">
+                            <div style="font-size: 11px; color: var(--text-muted);">最大ドローダウン</div>
+                            <div style="font-size: 16px; font-weight: 800; color: var(--accent-red);" id="backtest-dd">2.54%</div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: 4px;">
+                        ※ 1回上限10万円以内・損切り-2.5%・利確+6.0%・保有3日以内の規律あるルールを完全適用。
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 手動管理ポジション & トレード振り返りジャーナル -->
+        <section class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h2 class="card-title">💼 保有中ポジション (手動管理)</h2>
+                <span class="chip-badge">最大同時保有: 3枠 (30万円)</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>銘柄</th>
+                            <th>エントリー価格</th>
+                            <th>現在値</th>
+                            <th>株数</th>
+                            <th>投資金額</th>
+                            <th>含み損益 (率)</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="positions-table-body">
+                        <!-- JSで動的生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- トレード振り返り履歴 -->
+        <section class="card">
+            <div class="card-header">
+                <h2 class="card-title">📖 トレード振り返りジャーナル (全トレード履歴)</h2>
+                <span class="chip-badge">LocalStorage & SQLite永続化</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>決済日時 / 銘柄</th>
+                            <th>買値 → 売値</th>
+                            <th>株数 (投資額)</th>
+                            <th>実現損益 (率)</th>
+                            <th>決済理由</th>
+                            <th>振り返りメモ / タグ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table-body">
+                        <!-- JSで動的生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 手動エントリー確認モーダル -->
+    <div class="modal-overlay" id="entry-modal">
+        <div class="modal-content">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--accent-green);">💡 手動買いエントリー発注</h3>
+            <p style="font-size: 13px; color: var(--text-muted);" id="entry-modal-symbol">BASE (4477.T)</p>
+            
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">買付価格 (円)</label>
+                <input type="number" id="entry-modal-price" class="input-field" step="0.5">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">株数 (10万円以下)</label>
+                <input type="number" id="entry-modal-shares" class="input-field" step="10">
+            </div>
+            <div style="font-size: 13px; color: var(--accent-amber);">
+                概算投資金額: <span id="entry-modal-invest" style="font-weight:700;">¥0</span> (常に10万円以内)
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">エントリーメモ (任意)</label>
+                <input type="text" id="entry-modal-notes" class="input-field" placeholder="例: EMAパーフェクトオーダー反発確認">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn btn-primary" style="flex:1;" id="btn-confirm-entry">発注を記録する</button>
+                <button class="btn btn-secondary modal-close-btn" style="flex:1;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手動決済確認モーダル -->
+    <div class="modal-overlay" id="exit-modal">
+        <div class="modal-content">
+            <h3 style="font-size: 18px; font-weight: 700; color: var(--primary);">🚪 手動決済 & 振り返り記録</h3>
+            <p style="font-size: 13px; color: var(--text-muted);" id="exit-modal-symbol">BASE (4477.T)</p>
+            
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">決済価格 (円)</label>
+                <input type="number" id="exit-modal-price" class="input-field" step="0.5">
+            </div>
+            <div style="font-size: 14px; font-weight: 700;">
+                確定損益: <span id="exit-modal-pnl" class="val-green">¥0</span>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">決済理由</label>
+                <select id="exit-modal-reason" class="input-field">
+                    <option value="TAKE_PROFIT">利確 (+6%達成)</option>
+                    <option value="STOP_LOSS">損切り (-2.5%到達)</option>
+                    <option value="TIMEOUT">期限切れ (3日経過)</option>
+                    <option value="MANUAL_PROFIT">手動利確</option>
+                    <option value="MANUAL_LOSS">手動損切り</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">振り返りメモ・反省点</label>
+                <input type="text" id="exit-modal-notes" class="input-field" placeholder="例: 狙い通り+6%利確ポイントで決済成功">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: var(--text-muted);">タグ</label>
+                <input type="text" id="exit-modal-tags" class="input-field" value="#HighWin #利確">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn btn-danger" style="flex:1;" id="btn-confirm-exit">決済を記録する</button>
+                <button class="btn btn-secondary modal-close-btn" style="flex:1;">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知設定モーダル -->
+    <div class="modal-overlay" id="notify-settings-modal">
+        <div class="modal-content" style="max-width: 580px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 18px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                    🔔 エントリー＆決済 通知設定
+                </h3>
+                <button class="modal-close-btn" style="background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;">&times;</button>
+            </div>
+            
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: -8px;">
+                シグナル検知時や利確/損切り時に、ブラウザ・メール・チャット（Discord/Slack/LINE）へ自動通知します。
+            </p>
+
+            <!-- タブナビゲーション -->
+            <div class="tab-nav" style="margin-bottom: 12px;">
+                <button class="tab-btn active" data-tab="notify-tab-browser">🌐 ブラウザ通知</button>
+                <button class="tab-btn" data-tab="notify-tab-chat">💬 チャット (Discord/Slack)</button>
+                <button class="tab-btn" data-tab="notify-tab-email">✉️ メール通知</button>
+                <button class="tab-btn" data-tab="notify-tab-events">⚙️ 通知条件</button>
+            </div>
+
+            <!-- タブ 1: ブラウザ通知 -->
+            <div id="notify-tab-browser" class="notify-tab-pane">
+                <div class="notify-channel-card">
+                    <div class="notify-channel-header">
+                        <span class="notify-channel-title">🌐 Webブラウザ デスクトップ通知</span>
+                        <label class="switch">
+                            <input type="checkbox" id="notify-browser-enabled" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+                        PCやスマホのブラウザでシグナル点灯時にポップアップ通知を表示します。
+                    </p>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-secondary" id="btn-request-browser-perm" style="font-size: 12px; padding: 6px 12px;">
+                            🔑 通知権限を許可する
+                        </button>
+                        <button class="btn-test" id="btn-test-browser">
+                            🔔 テスト通知を送信
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブ 2: チャット通知 (Discord / Slack) -->
+            <div id="notify-tab-chat" class="notify-tab-pane" style="display: none;">
+                <!-- Discord -->
+                <div class="notify-channel-card">
+                    <div class="notify-channel-header">
+                        <span class="notify-channel-title">🎮 Discord Webhook 通知</span>
+                        <label class="switch">
+                            <input type="checkbox" id="notify-discord-enabled">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <label style="font-size: 11px; color: var(--text-muted);">Discord Webhook URL</label>
+                    <input type="text" id="notify-discord-url" class="input-field" placeholder="https://discord.com/api/webhooks/..." style="margin-top: 4px; margin-bottom: 10px;">
+                    <button class="btn-test" id="btn-test-discord">🔔 Discord テスト通知</button>
+                </div>
+
+                <!-- Slack -->
+                <div class="notify-channel-card">
+                    <div class="notify-channel-header">
+                        <span class="notify-channel-title">💼 Slack Webhook 通知</span>
+                        <label class="switch">
+                            <input type="checkbox" id="notify-slack-enabled">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <label style="font-size: 11px; color: var(--text-muted);">Slack Incoming Webhook URL</label>
+                    <input type="text" id="notify-slack-url" class="input-field" placeholder="https://hooks.slack.com/services/..." style="margin-top: 4px; margin-bottom: 10px;">
+                    <button class="btn-test" id="btn-test-slack">🔔 Slack テスト通知</button>
+                </div>
+            </div>
+
+            <!-- タブ 3: メール通知 -->
+            <div id="notify-tab-email" class="notify-tab-pane" style="display: none;">
+                <div class="notify-channel-card">
+                    <div class="notify-channel-header">
+                        <span class="notify-channel-title">✉️ メール (SMTP) 通知</span>
+                        <label class="switch">
+                            <input type="checkbox" id="notify-email-enabled">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <label style="font-size: 11px; color: var(--text-muted);">送信先メールアドレス (通知受信用)</label>
+                            <input type="email" id="notify-email-to" class="input-field" placeholder="your-email@example.com">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                            <div>
+                                <label style="font-size: 11px; color: var(--text-muted);">SMTP サーバー (例: smtp.gmail.com)</label>
+                                <input type="text" id="notify-smtp-host" class="input-field" value="smtp.gmail.com">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; color: var(--text-muted);">ポート</label>
+                                <input type="number" id="notify-smtp-port" class="input-field" value="587">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: var(--text-muted);">SMTP ユーザー名 (送信元 Gmail 等)</label>
+                            <input type="text" id="notify-smtp-user" class="input-field" placeholder="sender@gmail.com">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; color: var(--text-muted);">SMTP パスワード (Gmailはアプリパスワード)</label>
+                            <input type="password" id="notify-smtp-pass" class="input-field" placeholder="••••••••••••••••">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 12px;">
+                        <button class="btn-test" id="btn-test-email">✉️ テストメール送信</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- タブ 4: 通知条件 -->
+            <div id="notify-tab-events" class="notify-tab-pane" style="display: none;">
+                <div class="notify-channel-card">
+                    <div class="notify-channel-header">
+                        <span>🔔 買いシグナル発生時 (HighWin点灯)</span>
+                        <label class="switch"><input type="checkbox" id="event-buy-signal" checked><span class="slider"></span></label>
+                    </div>
+                    <div class="notify-channel-header">
+                        <span>🎯 利確ライン到達時 (+6.0%)</span>
+                        <label class="switch"><input type="checkbox" id="event-take-profit" checked><span class="slider"></span></label>
+                    </div>
+                    <div class="notify-channel-header">
+                        <span>🛑 損切りライン到達時 (-2.5%)</span>
+                        <label class="switch"><input type="checkbox" id="event-stop-loss" checked><span class="slider"></span></label>
+                    </div>
+                    <div class="notify-channel-header">
+                        <span>⏳ 最大保有期限 (3日/15バー経過警告)</span>
+                        <label class="switch"><input type="checkbox" id="event-timeout" checked><span class="slider"></span></label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- モーダルフッター -->
+            <div style="display: flex; gap: 10px; margin-top: 14px;">
+                <button class="btn btn-primary" style="flex: 1;" id="btn-save-notify-settings">💾 設定を保存する</button>
+                <button class="btn btn-secondary modal-close-btn" style="flex: 1;">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/strategy.js"></script>
+    <script src="js/notifier.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/data_store.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

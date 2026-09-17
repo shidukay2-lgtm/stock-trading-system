@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stock-trading-system
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && (pip3 install -r requirements.txt || pip install -r requirements.txt || true) && (python3 server/market_monitor.py || python server/market_monitor.py || true)
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "1"
