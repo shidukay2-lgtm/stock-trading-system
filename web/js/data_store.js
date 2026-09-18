@@ -34,7 +34,6 @@ class DataStore {
             console.error("自動売買設定保存エラー:", e);
         }
     }
-    }
 
     loadPositions() {
         try {
