@@ -250,11 +250,16 @@ class NotificationManager {
      * 買いシグナル検知時のマルチチャネル一括配信
      */
     async notifyBuySignal(info, latest, orderCalc) {
-        if (!this.settings.events.buySignal) return;
+        if (!this.settings || !this.settings.events || !this.settings.events.buySignal) return;
+        if (!info || !latest) return;
 
         const signalTime = latest.time || new Date().toISOString().replace("T", " ").substring(0, 16);
         const title = `🔔 【買いシグナル点灯】${info.name} (${info.code}) [${signalTime}]`;
-        const body = `点灯日時: ${signalTime} (1h足確定)\n推奨買値: ¥${latest.close.toLocaleString()} | 推奨株数: ${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})\n利確: ¥${latest.takeProfitPrice.toFixed(1)} (+6.0%) | 損切: ¥${latest.stopLossPrice.toFixed(1)} (-2.5%) | RR比 2.4:1 | 最大3日保有`;
+        const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
+        const orderInvest = (orderCalc && orderCalc.investment) ? `¥${orderCalc.investment.toLocaleString()}` : "10万円以内";
+        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * 1.06).toFixed(1)}`;
+        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * 0.975).toFixed(1)}`;
+        const body = `点灯日時: ${signalTime} (1h足確定)\n推奨買値: ¥${latest.close.toLocaleString()} | 推奨株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (+6.0%) | 損切: ${slStr} (-2.5%) | RR比 2.4:1 | 最大3日保有`;
 
         // 1. ブラウザ通知
         this.sendBrowserNotification(title, body, `buy-${info.code}`);
@@ -266,13 +271,12 @@ class NotificationManager {
                 `HighWin_TripleConfluence 戦略により、**${info.name} (${info.code})** にて強力な買いシグナルが点灯しました！\n⏰ **点灯日時: ${signalTime} (1h足確定)**`,
                 [
                     { name: "点灯日時", value: `${signalTime} (1h足確定)`, inline: true },
-                    { name: "市場 / セクター", value: `${info.market} / ${info.sector}`, inline: true },
+                    { name: "市場 / セクター", value: `${info.market || '東証'} / ${info.sector || '成長小型'}`, inline: true },
                     { name: "推奨エントリー価格", value: `¥${latest.close.toLocaleString()}`, inline: true },
-                    { name: "推奨株数 (100株単元)", value: `${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})`, inline: true },
-                    { name: "利確ライン (+6.0%)", value: `¥${latest.takeProfitPrice.toFixed(1)}`, inline: true },
-                    { name: "損切ライン (-2.5%)", value: `¥${latest.stopLossPrice.toFixed(1)}`, inline: true },
-                    { name: "リスクリワード比", value: "2.40 : 1", inline: true },
-                    { name: "テクニカル根拠", value: `EMA10 (¥${latest.ema10.toFixed(1)}) > EMA25 (¥${latest.ema25.toFixed(1)}) | MACD Hist (+${latest.macdHist.toFixed(2)}) | RSI ${latest.rsi.toFixed(1)}`, inline: false }
+                    { name: "推奨株数 (100株単元)", value: `${orderNote} (${orderInvest})`, inline: true },
+                    { name: "利確ライン (+6.0%)", value: tpStr, inline: true },
+                    { name: "損切ライン (-2.5%)", value: slStr, inline: true },
+                    { name: "リスクリワード比", value: "2.40 : 1", inline: true }
                 ],
                 0x00FF88
             );
@@ -281,7 +285,7 @@ class NotificationManager {
         // 3. Slack 通知
         if (this.settings.chat.slackEnabled && this.settings.chat.slackWebhook) {
             await this.sendSlackNotification(
-                `*${title}*\n${body}\n> テクニカル根拠: EMA10>EMA25 / MACDヒストグラム好転 / RSI ${latest.rsi.toFixed(1)}`
+                `*${title}*\n${body}`
             );
         }
 
@@ -292,6 +296,45 @@ class NotificationManager {
                 subject: title,
                 body: `${title}\n\n${body}\n\nダッシュボードURL: http://localhost:3000`
             });
+        }
+    }
+
+    /**
+     * ポジション決済時のマルチチャネル通知配信 (利確・損切・タイムアウト)
+     */
+    async notifyTradeExit(trade, symbolName = "") {
+        if (!trade) return;
+        const name = symbolName || trade.symbol_name || trade.symbol;
+        const isWin = trade.pnl_amount > 0;
+        const isTP = trade.exit_reason === "TAKE_PROFIT";
+        const isSL = trade.exit_reason === "STOP_LOSS";
+
+        let eventEmoji = isTP ? "🎯 【利食い達成】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限決済】");
+        const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
+        const body = `決済日時: ${trade.exit_time || 'たった今'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
+
+        // 1. ブラウザ通知
+        this.sendBrowserNotification(title, body, `exit-${trade.symbol}`);
+
+        // 2. Discord 通知
+        if (this.settings.chat && this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
+            await this.sendDiscordNotification(
+                title,
+                `保有ポジションが決済約定しました。\n**${name} (${trade.symbol})**`,
+                [
+                    { name: "決済種別", value: trade.exit_reason, inline: true },
+                    { name: "実現損益額", value: `${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)`, inline: true },
+                    { name: "買値 ➔ 決済値", value: `¥${Number(trade.entry_price).toLocaleString()} ➔ ¥${Number(trade.exit_price).toLocaleString()}`, inline: true },
+                    { name: "保有株数", value: `${trade.shares}株`, inline: true },
+                    { name: "決済日時", value: `${trade.exit_time}`, inline: true }
+                ],
+                isWin ? 0x00FF88 : 0xFF5252
+            );
+        }
+
+        // 3. Slack 通知
+        if (this.settings.chat && this.settings.chat.slackEnabled && this.settings.chat.slackWebhook) {
+            await this.sendSlackNotification(`*${title}*\n${body}`);
         }
     }
 }

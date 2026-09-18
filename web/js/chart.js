@@ -118,16 +118,18 @@ class TradingChart {
         const annotations = [];
 
         if (activePosition) {
-            const entryP = activePosition.entryPrice;
-            const tpP = activePosition.takeProfitPrice;
-            const slP = activePosition.stopLossPrice;
+            const fallbackPrice = closes[closes.length - 1] || 500;
+            const entryP = Number(activePosition.entryPrice) || fallbackPrice;
+            const tpP = Number(activePosition.takeProfitPrice) || (entryP * 1.06);
+            const slP = Number(activePosition.stopLossPrice) || (entryP * 0.975);
+            const posShares = Number(activePosition.shares) || 100;
             const lastTime = times[times.length - 1];
 
             // 1. 利確ゾーン（買値〜利確目標の薄緑背景）
             shapes.push({
                 type: "rect",
                 x0: times[0], x1: lastTime,
-                y0: entryP, y1: tpP,
+                y0: Math.min(entryP, tpP), y1: Math.max(entryP, tpP),
                 yref: "y",
                 fillcolor: "rgba(0, 230, 118, 0.08)",
                 line: { width: 0 }
@@ -137,7 +139,7 @@ class TradingChart {
             shapes.push({
                 type: "rect",
                 x0: times[0], x1: lastTime,
-                y0: slP, y1: entryP,
+                y0: Math.min(slP, entryP), y1: Math.max(slP, entryP),
                 yref: "y",
                 fillcolor: "rgba(255, 82, 82, 0.08)",
                 line: { width: 0 }
@@ -176,16 +178,16 @@ class TradingChart {
                 text: `🎯 利確目標: ¥${tpP.toFixed(1)} (+6.0%)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#00e676",
                 ax: 60, ay: 0,
-                bgcolor: "#00e676", font: { color: "#0b0f19", size: 11, weight: "bold" },
+                bgcolor: "#00e676", font: { color: "#0b0f19", size: 11 },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
             annotations.push({
                 x: lastTime, y: entryP, xref: "x", yref: "y",
-                text: `💼 買値: ¥${entryP.toLocaleString()} (${activePosition.shares || 100}株)`,
+                text: `💼 買値: ¥${entryP.toLocaleString()} (${posShares}株)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#00e5ff",
                 ax: 60, ay: 0,
-                bgcolor: "#00e5ff", font: { color: "#0b0f19", size: 11, weight: "bold" },
+                bgcolor: "#00e5ff", font: { color: "#0b0f19", size: 11 },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
@@ -194,19 +196,19 @@ class TradingChart {
                 text: `🛑 損切ライン: ¥${slP.toFixed(1)} (-2.5%)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#ff5252",
                 ax: 60, ay: 0,
-                bgcolor: "#ff5252", font: { color: "#ffffff", size: 11, weight: "bold" },
+                bgcolor: "#ff5252", font: { color: "#ffffff", size: 11 },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
             // エントリー日時の足へのマーカー
             if (activePosition.entryTime) {
-                const entryCandleTime = activePosition.entryTime.substring(0, 16);
+                const entryCandleTime = String(activePosition.entryTime).substring(0, 16);
                 annotations.push({
                     x: entryCandleTime, y: entryP, xref: "x", yref: "y",
                     text: `◆ ENTRY 約定<br>¥${entryP.toLocaleString()}`,
                     showarrow: true, arrowhead: 3, arrowcolor: "#00e5ff",
                     ax: 0, ay: -35,
-                    bgcolor: "rgba(0, 229, 255, 0.9)", font: { color: "#0b0f19", size: 10, weight: "bold" },
+                    bgcolor: "rgba(0, 229, 255, 0.9)", font: { color: "#0b0f19", size: 10 },
                     bordercolor: "#ffffff", borderwidth: 1, borderpad: 3
                 });
             }
