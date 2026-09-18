@@ -17,8 +17,129 @@ document.addEventListener("DOMContentLoaded", async () => {
     let refreshCountdown = 30;
     let isRefreshing = false;
 
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader) ---
+    function processAutoTrading() {
+        if (!symbolsData || !symbolsData.symbols) return;
+        if (!dataStore.autoTradingEnabled) return;
+
+        // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了)
+        const currentPositions = [...dataStore.positions];
+        currentPositions.forEach(pos => {
+            const sym = symbolsData.symbols[pos.symbol];
+            if (!sym || !sym.candles || sym.candles.length === 0) return;
+
+            const latest = sym.candles[sym.candles.length - 1];
+            const currentClose = latest.close;
+            const currentHigh = latest.high || currentClose;
+            const currentLow = latest.low || currentClose;
+
+            // 保有バー数の更新 (エントリー時刻以降のバー数を正確に集計)
+            let barsCount = 0;
+            for (let i = 0; i < sym.candles.length; i++) {
+                if (sym.candles[i].time >= pos.entryTime) {
+                    barsCount++;
+                }
+            }
+            pos.holdingBars = Math.max(1, barsCount);
+
+            let exitPrice = null;
+            let exitReason = null;
+            let exitNote = "";
+
+            // (1) 利確判定 (+6.0%以上)
+            if (currentHigh >= pos.takeProfitPrice || currentClose >= pos.takeProfitPrice) {
+                exitPrice = Math.max(pos.takeProfitPrice, currentClose);
+                exitReason = "TAKE_PROFIT";
+                exitNote = `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
+            }
+            // (2) 損切判定 (-2.5%以下)
+            else if (currentLow <= pos.stopLossPrice || currentClose <= pos.stopLossPrice) {
+                exitPrice = Math.min(pos.stopLossPrice, currentClose);
+                exitReason = "STOP_LOSS";
+                exitNote = `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
+            }
+            // (3) 保有期限満了 (15バー / 3営業日)
+            else if (pos.holdingBars >= 15) {
+                exitPrice = currentClose;
+                exitReason = "TIMEOUT";
+                exitNote = `⌛ 保有期限満了決済 (3営業日/15バー経過: ¥${exitPrice.toLocaleString()})`;
+            }
+
+            if (exitPrice !== null && exitReason !== null) {
+                console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
+                const closedTrade = dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason}`);
+                if (closedTrade) {
+                    notifier.notifyTradeExit(closedTrade, pos.symbolName);
+                }
+            }
+        });
+
+        // 2. 新規買いシグナルの自動エントリーチェック
+        const maxConcurrentPositions = 3; // 同時保有上限
+        if (dataStore.positions.length < maxConcurrentPositions) {
+            const symKeys = Object.keys(symbolsData.symbols);
+            for (const code of symKeys) {
+                if (dataStore.positions.length >= maxConcurrentPositions) break;
+
+                const sym = symbolsData.symbols[code];
+                const activePos = dataStore.positions.find(p => p.symbol === code);
+                if (activePos) continue; // すでに保有中ならスキップ
+
+                const analyzed = strategy.analyzeCandles(sym.candles);
+                const latest = analyzed[analyzed.length - 1];
+
+                if (latest && latest.isBuySignal) {
+                    const orderCalc = strategy.calculateOrderSize(latest.close);
+                    if (orderCalc.shares > 0 && orderCalc.investment <= 100000) {
+                        const entryPrice = latest.close;
+                        const pos = {
+                            symbol: sym.info.code,
+                            symbolName: sym.info.name,
+                            entryTime: latest.time || new Date().toISOString().replace("T", " ").substring(0, 16),
+                            entryPrice: entryPrice,
+                            shares: orderCalc.shares,
+                            investmentAmount: orderCalc.investment,
+                            stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - 0.025)),
+                            takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + 0.060)),
+                            strategyName: "HighWin_TripleConfluence",
+                            holdingBars: 1,
+                            notes: "🤖 リアルタイム自動売買エントリー約定 (HighWin_TripleConfluence)"
+                        };
+
+                        console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
+                        dataStore.addPosition(pos);
+                        notifier.notifyBuySignal(sym.info, latest, orderCalc, pos.entryTime);
+                    }
+                }
+            }
+        }
+    }
+
+    function updateAutoTradeButtonUI() {
+        const btn = document.getElementById("btn-toggle-autotrade");
+        const statusText = document.getElementById("autotrade-status-text");
+        if (!btn || !statusText) return;
+
+        const isEnabled = dataStore.autoTradingEnabled;
+        if (isEnabled) {
+            btn.style.background = "rgba(0, 230, 118, 0.15)";
+            btn.style.borderColor = "var(--accent-green)";
+            btn.style.color = "var(--accent-green)";
+            statusText.innerText = "自動売買: ON (稼働中)";
+        } else {
+            btn.style.background = "rgba(255, 255, 255, 0.05)";
+            btn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+            btn.style.color = "var(--text-muted)";
+            statusText.innerText = "自動売買: OFF (停止中)";
+        }
+    }
+
     function renderAllUI() {
         if (!symbolsData || !symbolsData.symbols) return;
+
+        // 自動売買エンジンの実行（シグナル検知・自動エントリー & 自動決済）
+        processAutoTrading();
+        updateAutoTradeButtonUI();
 
         // 初期選択銘柄の調整（選択中の銘柄が存在しない場合は先頭銘柄）
         const keys = Object.keys(symbolsData.symbols);
@@ -142,17 +263,51 @@ document.addEventListener("DOMContentLoaded", async () => {
             chip.className = chipClasses.join(" ");
             chip.dataset.code = code;
 
-            let statusBadgeHtml = "";
-            if (activePos) {
-                statusBadgeHtml = `<span class="badge-status badge-holding">💼 保有中</span>`;
-            } else if (isBuyActive) {
-                statusBadgeHtml = `<span class="badge-status badge-buy">🔔 BUY点灯中</span>`;
-            } else {
-                statusBadgeHtml = `<span class="badge-status badge-wait">⏳ 待機中</span>`;
-            }
-
             const currentPrice = latest ? latest.close : (info.current_price_approx || 500);
             const orderCalc = strategy.calculateOrderSize(currentPrice);
+
+            let statusBadgeHtml = "";
+            let detailsHtml = "";
+
+            if (activePos) {
+                const pnl = (currentPrice - activePos.entryPrice) * activePos.shares;
+                const pnlPct = ((currentPrice - activePos.entryPrice) / activePos.entryPrice) * 100;
+                const pnlColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+
+                statusBadgeHtml = `<span class="badge-status badge-holding" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid #00e5ff;">💼 保有中</span>`;
+                detailsHtml = `
+                    <div class="chip-growth" style="font-size: 12px; color: var(--text-main); margin-top: 2px;">
+                        買値 ¥${activePos.entryPrice.toLocaleString()} (${activePos.shares}株) | <b style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</b>
+                    </div>
+                    <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px; display: flex; gap: 8px;">
+                        <span>🎯 利確: ¥${activePos.takeProfitPrice.toFixed(1)}</span>
+                        <span style="color:var(--accent-red)">🛑 損切: ¥${activePos.stopLossPrice.toFixed(1)}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #00e5ff; margin-top: 2px;">
+                        ⏰ エントリー: ${activePos.entryTime} (保有 ${activePos.holdingBars || 1}/15本)
+                    </div>
+                `;
+            } else if (isBuyActive) {
+                statusBadgeHtml = `<span class="badge-status badge-buy">🔔 BUY点灯中</span>`;
+                detailsHtml = `
+                    <div class="chip-growth" style="font-size: 12px; color: var(--text-muted);">
+                        現在値 ¥${currentPrice.toLocaleString()} | ${orderCalc.note}
+                    </div>
+                    <div style="font-size: 11px; color: var(--primary); margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                        ⏰ 点灯日時: ${lastSignalTimeStr} (自動約定対象)
+                    </div>
+                `;
+            } else {
+                statusBadgeHtml = `<span class="badge-status badge-wait">⏳ 待機中</span>`;
+                detailsHtml = `
+                    <div class="chip-growth" style="font-size: 12px; color: var(--text-muted);">
+                        現在値 ¥${currentPrice.toLocaleString()} | ${orderCalc.note}
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;">
+                        直近点灯: ${lastSignalTimeStr}
+                    </div>
+                `;
+            }
 
             chip.innerHTML = `
                 <div class="chip-header">
@@ -165,12 +320,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     </div>
                 </div>
                 <div class="chip-name" style="font-size: 16px; font-weight: 700; margin: 4px 0;">${info.name}</div>
-                <div class="chip-growth" style="font-size: 12px; color: var(--text-muted);">
-                    株価 ¥${currentPrice.toLocaleString()} | ${orderCalc.note}
-                </div>
-                <div style="font-size: 11px; color: var(--primary); margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                    ⏰ 点灯日時: ${lastSignalTimeStr}
-                </div>
+                ${detailsHtml}
             `;
 
             chip.addEventListener("click", () => selectSymbol(code));
@@ -200,7 +350,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         if (buySignals.length > 0) {
-            tickerText.innerHTML = `<b style="color: var(--accent-green);">🔔 ${buySignals.length}件の買いシグナルが点灯中！</b> (勝率65%以上・100株単元厳守)`;
+            tickerText.innerHTML = `<b style="color: var(--accent-green);">🔔 ${buySignals.length}件の買いシグナルが点灯中！</b> (自動売買エンジン稼働中・100株単元)`;
             buySignals.forEach(item => {
                 const btn = document.createElement("button");
                 btn.className = "ticker-symbol-quick";
@@ -244,9 +394,77 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pnl = (latest.close - activePos.entryPrice) * activePos.shares;
             const pnlPct = ((latest.close - activePos.entryPrice) / activePos.entryPrice) * 100;
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
+            const toTp = activePos.takeProfitPrice - latest.close;
+            const toSl = latest.close - activePos.stopLossPrice;
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+            banner.innerHTML = `
+                <div class="signal-banner-left">
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
+                        <span class="signal-tag" style="background:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; color: #0b0f19; font-weight:700;">
+                            💼 ポジション保有中 (自動売買監視中)
+                        </span>
+                        <span class="chip-badge" style="background:rgba(0,229,255,0.2); color:#00e5ff; border:1px solid #00e5ff;">
+                            ⏰ エントリー: ${activePos.entryTime}
+                        </span>
+                        <span class="chip-badge" style="background:rgba(255,255,255,0.1); color:var(--text-muted);">
+                            保有バー数: ${activePos.holdingBars || 1} / 15本 (最大3日)
+                        </span>
+                    </div>
+                    <div class="signal-title">${info.name} (${info.code}) - リアルタイム保有状況</div>
+                    <div class="signal-metrics-row">
+                        <div class="sig-metric"><span class="sig-metric-label">買値</span><span class="sig-metric-value val-cyan">¥${activePos.entryPrice.toLocaleString()}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">現在値</span><span class="sig-metric-value">¥${latest.close.toLocaleString()}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">株数 (単元)</span><span class="sig-metric-value">${activePos.shares} 株</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">評価損益 (%)</span><span class="sig-metric-value ${colorClass}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">利確目標 (+6.0%)</span><span class="sig-metric-value val-green">¥${activePos.takeProfitPrice.toFixed(1)} (残 ${toTp >= 0 ? '+' : ''}${toTp.toFixed(1)}円)</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">損切目標 (-2.5%)</span><span class="sig-metric-value val-red">¥${activePos.stopLossPrice.toFixed(1)} (幅 ${toSl.toFixed(1)}円)</span></div>
+                    </div>
+                </div>
+                <div class="signal-actions">
+                    <button class="btn btn-danger" id="btn-manual-exit">🚪 今すぐ手動決済</button>
+                </div>
+            `;
+
+            document.getElementById("btn-manual-exit").addEventListener("click", () => openExitModal(activePos, latest.close));
+
+        } else if (latest.isBuySignal) {
+            // 買いシグナル点灯中！
+            banner.className = "signal-alert-banner";
+            banner.style.borderColor = "var(--accent-green)";
+            banner.innerHTML = `
+                <div class="signal-banner-left">
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px; flex-wrap:wrap;">
+                        <span class="signal-tag">🔔 HighWin 買いシグナル点灯中！</span>
+                        <span class="chip-badge" style="background: var(--primary); color: #0b0f19; font-weight: 700;">
+                            ⏰ 点灯日時: ${signalTime} (1h足確定)
+                        </span>
+                        <span class="chip-badge" style="background: rgba(0, 230, 118, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green);">
+                            勝率 ${metrics.win_rate_pct}%
+                        </span>
+                        <span class="chip-badge" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff;">
+                            🤖 自動売買: ${dataStore.autoTradingEnabled ? '有効 (自動約定)' : '停止中'}
+                        </span>
+                    </div>
+                    <div class="signal-title">${info.name} (${info.code}) - 買いエントリー推奨</div>
+                    <div class="signal-metrics-row">
+                        <div class="sig-metric"><span class="sig-metric-label">推奨買値</span><span class="sig-metric-value val-cyan">¥${latest.close.toLocaleString()}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">推奨株数 (100株単元)</span><span class="sig-metric-value">${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">利確ライン (+6.0%)</span><span class="sig-metric-value val-green">¥${latest.takeProfitPrice.toFixed(1)}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">損切ライン (-2.5%)</span><span class="sig-metric-value val-red">¥${latest.stopLossPrice.toFixed(1)}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">2.40 : 1</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">最大保有期間</span><span class="sig-metric-value">3営業日 (15バー)</span></div>
+                    </div>
+                </div>
+                <div class="signal-actions">
+                    <button class="btn btn-primary" id="btn-manual-entry">💡 手動エントリー</button>
+                </div>
+            `;
+
+            document.getElementById("btn-manual-entry").addEventListener("click", () => openEntryModal(info, latest, orderCalc, signalTime));
+
+        } else {
             banner.innerHTML = `
                 <div class="signal-banner-left">
                     <span class="signal-tag" style="background:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; color: #0b0f19;">
@@ -675,6 +893,18 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         }
         return arr;
+    }
+
+    // 自動売買トグルボタンのイベントハンドラ
+    const btnToggleAutoTrade = document.getElementById("btn-toggle-autotrade");
+    if (btnToggleAutoTrade) {
+        btnToggleAutoTrade.addEventListener("click", () => {
+            const nextState = !dataStore.autoTradingEnabled;
+            dataStore.saveAutoTradingEnabled(nextState);
+            updateAutoTradeButtonUI();
+            renderAllUI();
+            alert(nextState ? "🤖 自動売買モードを【有効 (ON)】に設定しました。\n買いシグナル検知時に自動エントリーし、利確(+6%)/損切(-2.5%)/期限切れ(15本)を自動決済します。" : "⏸️ 自動売買モードを【停止 (OFF)】に設定しました。\n手動承認モードになります。");
+        });
     }
 
     // 初回ロード

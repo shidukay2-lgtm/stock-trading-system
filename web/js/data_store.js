@@ -9,10 +9,31 @@ class DataStore {
         this.STORAGE_KEY_TRADES = "sts_trade_history_v1";
         this.STORAGE_KEY_NOTES = "sts_trade_notes_v1";
         this.STORAGE_KEY_SETTINGS = "sts_user_settings_v1";
+        this.STORAGE_KEY_AUTOTRADE = "sts_autotrade_enabled_v1";
 
         this.positions = this.loadPositions();
         this.trades = this.loadTrades();
         this.notes = this.loadNotes();
+        this.autoTradingEnabled = this.loadAutoTradingEnabled();
+    }
+
+    loadAutoTradingEnabled() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEY_AUTOTRADE);
+            return data !== null ? JSON.parse(data) : true; // デフォルトで有効
+        } catch (e) {
+            return true;
+        }
+    }
+
+    saveAutoTradingEnabled(enabled) {
+        this.autoTradingEnabled = enabled;
+        try {
+            localStorage.setItem(this.STORAGE_KEY_AUTOTRADE, JSON.stringify(enabled));
+        } catch (e) {
+            console.error("自動売買設定保存エラー:", e);
+        }
+    }
     }
 
     loadPositions() {
