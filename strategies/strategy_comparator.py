@@ -11,7 +11,6 @@ from rich.panel import Panel
 
 from config.settings import DEFAULT_SETTINGS
 from core.models import BacktestResult
-from backtesting.engine import BacktestEngine
 from strategies.base_strategy import BaseStrategy
 from strategies.high_win_strategies import (
     HighWinTrendPullbackStrategy,
@@ -58,6 +57,7 @@ class StrategyComparator:
 
         console.print(f"\n[bold bright_white]📊 複数戦略の過去相場バックテスト比較検証開始: [{symbol_name} ({symbol})][/bold bright_white]")
 
+        from backtesting.engine import BacktestEngine
         for strategy in candidates:
             engine = BacktestEngine(strategy=strategy, settings=DEFAULT_SETTINGS)
             res = engine.run(df=df, symbol=symbol, symbol_name=symbol_name, save_to_db=False, verbose=False)

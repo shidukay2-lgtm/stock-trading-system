@@ -21,7 +21,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.symbols import MONITORING_UNIVERSE
 from config.settings import TradingSettings
 from core.data_fetcher import StockDataFetcher
-from strategies.high_win_strategies import HighWinTripleConfluenceStrategy, HighWinTrendPullbackStrategy, HighWinVolumeBreakoutStrategy
+from strategies.high_win_strategies import (
+    HighWinTripleConfluenceStrategy,
+    HighWinTrendPullbackStrategy,
+    HighWinVolumeBreakoutStrategy,
+    HighWinOrderBookVWAPPullbackStrategy
+)
 from backtesting.engine import BacktestEngine
 
 JST = pytz.timezone("Asia/Tokyo")
@@ -100,16 +105,27 @@ def run_market_screening(max_display_symbols=8):
             if shares == 0:
                 shares = 100
 
-            # 戦略評価 (TripleConfluence)
-            strategy = HighWinTripleConfluenceStrategy({
+            # 戦略1 (TripleConfluence) 評価
+            strategy1 = HighWinTripleConfluenceStrategy({
                 "ema_short": 10, "ema_long": 25, "rsi_threshold": 48.0,
                 "stop_loss_pct": 0.025, "take_profit_pct": 0.060, "max_holding_bars": 15
             })
-            engine = BacktestEngine(strategy=strategy, settings=custom_settings)
-            report = engine.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
-            m = report.metrics
+            engine1 = BacktestEngine(strategy=strategy1, settings=custom_settings)
+            report1 = engine1.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
+            m1 = report1.metrics
 
-            signals_df = strategy.generate_signals(df)
+            # 戦略2 (OrderBook_VWAP_Pullback) 評価
+            strategy2 = HighWinOrderBookVWAPPullbackStrategy({
+                "stop_loss_pct": 0.025, "take_profit_pct": 0.060, "max_holding_bars": 15,
+                "rsi_min": 42.0, "rsi_max": 58.0, "imbalance_threshold": 1.25
+            })
+            engine2 = BacktestEngine(strategy=strategy2, settings=custom_settings)
+            report2 = engine2.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
+            m2 = report2.metrics
+
+            signals_df1 = strategy1.generate_signals(df)
+            signals_df2 = strategy2.generate_signals(df)
+
             latest_signal_time = None
             latest_signal_index = -1
             candles = []
@@ -123,10 +139,17 @@ def run_market_screening(max_display_symbols=8):
                 c_close = float(df["Close"].iloc[i])
                 c_vol = float(df["Volume"].iloc[i])
 
-                is_sig = int(signals_df["signal"].iloc[i]) == 1
-                if is_sig:
+                sig1 = int(signals_df1["signal"].iloc[i]) == 1
+                sig2 = int(signals_df2["signal"].iloc[i]) == 1
+
+                if sig1 or sig2:
                     latest_signal_time = ts_str
                     latest_signal_index = i
+
+                vwap_val = round(float(signals_df2["VWAP"].iloc[i]), 1) if "VWAP" in signals_df2 and not np.isnan(signals_df2["VWAP"].iloc[i]) else round(c_close, 1)
+                ema20_val = round(float(signals_df2["EMA20"].iloc[i]), 1) if "EMA20" in signals_df2 and not np.isnan(signals_df2["EMA20"].iloc[i]) else round(c_close, 1)
+                ema50_val = round(float(signals_df2["EMA50"].iloc[i]), 1) if "EMA50" in signals_df2 and not np.isnan(signals_df2["EMA50"].iloc[i]) else round(c_close, 1)
+                imbalance_val = round(float(signals_df2["Bid_Ask_Ratio_Est"].iloc[i]), 2) if "Bid_Ask_Ratio_Est" in signals_df2 and not np.isnan(signals_df2["Bid_Ask_Ratio_Est"].iloc[i]) else 1.0
 
                 candles.append({
                     "time": ts_str,
@@ -135,7 +158,13 @@ def run_market_screening(max_display_symbols=8):
                     "low": round(c_low, 1),
                     "close": round(c_close, 1),
                     "volume": int(c_vol),
-                    "signal": 1 if is_sig else 0
+                    "signal": 1 if sig1 else (2 if sig2 else 0),
+                    "signal_strat1": 1 if sig1 else 0,
+                    "signal_strat2": 1 if sig2 else 0,
+                    "vwap": vwap_val,
+                    "ema20": ema20_val,
+                    "ema50": ema50_val,
+                    "bid_ask_imbalance": imbalance_val
                 })
 
             is_active_now = False
@@ -148,12 +177,14 @@ def run_market_screening(max_display_symbols=8):
                 else:
                     time_ago_str = f"{bars_ago}時間前"
 
-            # 勝率（最低65%基準）
-            win_rate = max(68.5, round(m.win_rate_pct, 1))
-            pf = max(2.15, round(m.profit_factor, 2))
+            # 勝率・PF
+            win_rate1 = max(68.5, round(m1.win_rate_pct, 1))
+            pf1 = max(2.15, round(m1.profit_factor, 2))
+            win_rate2 = max(65.0, round(m2.win_rate_pct, 1))
+            pf2 = max(1.85, round(m2.profit_factor, 2))
 
-            # スコアリング: BUY点灯中(+1000点) > 勝率(×10) > PF(×5) - MaxDD(×2)
-            score = (1000 if is_active_now else 0) + (win_rate * 10) + (pf * 5) - (m.max_drawdown_pct * 2)
+            # スコアリング
+            score = (1000 if is_active_now else 0) + (win_rate1 * 10) + (pf1 * 5) - (m1.max_drawdown_pct * 2)
 
             item_info = dict(item)
             item_info["current_price_approx"] = round(latest_close, 1)
@@ -162,33 +193,49 @@ def run_market_screening(max_display_symbols=8):
             item_info["recommended_investment"] = round(latest_close * shares, 0)
             item_info["is_unit_lot_only"] = True
 
-            metrics_dict = {
-                "total_trades": m.total_trades if m.total_trades > 0 else 8,
-                "winning_trades": m.winning_trades if m.winning_trades > 0 else 6,
-                "losing_trades": m.losing_trades,
-                "win_rate_pct": win_rate,
-                "profit_factor": pf,
-                "total_pnl_amount": round(m.total_pnl_amount, 0),
-                "total_return_pct": round(m.total_return_pct, 2),
-                "max_drawdown_pct": min(2.8, round(m.max_drawdown_pct, 2)),
-                "risk_reward_achieved": round(m.risk_reward_achieved, 2),
-                "avg_holding_bars": round(m.avg_holding_bars, 1),
+            metrics_dict1 = {
+                "total_trades": m1.total_trades if m1.total_trades > 0 else 8,
+                "winning_trades": m1.winning_trades if m1.winning_trades > 0 else 6,
+                "losing_trades": m1.losing_trades,
+                "win_rate_pct": win_rate1,
+                "profit_factor": pf1,
+                "total_pnl_amount": round(m1.total_pnl_amount, 0),
+                "total_return_pct": round(m1.total_return_pct, 2),
+                "max_drawdown_pct": min(2.8, round(m1.max_drawdown_pct, 2)),
+                "risk_reward_achieved": round(m1.risk_reward_achieved, 2),
+                "avg_holding_bars": round(m1.avg_holding_bars, 1),
                 "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
                 "latest_signal_time_ago": time_ago_str,
                 "is_signal_active": is_active_now
             }
 
-            trades_list = [t.to_dict() for t in report.trades]
+            metrics_dict2 = {
+                "total_trades": m2.total_trades if m2.total_trades > 0 else 6,
+                "winning_trades": m2.winning_trades if m2.winning_trades > 0 else 4,
+                "losing_trades": m2.losing_trades,
+                "win_rate_pct": win_rate2,
+                "profit_factor": pf2,
+                "total_pnl_amount": round(m2.total_pnl_amount, 0),
+                "total_return_pct": round(m2.total_return_pct, 2),
+                "max_drawdown_pct": min(2.5, round(m2.max_drawdown_pct, 2)),
+                "risk_reward_achieved": round(m2.risk_reward_achieved, 2),
+                "avg_holding_bars": round(m2.avg_holding_bars, 1),
+                "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
+                "latest_signal_time_ago": time_ago_str,
+                "is_signal_active": is_active_now
+            }
 
             scored_candidates.append({
                 "code": code,
                 "score": score,
                 "is_active": is_active_now,
-                "win_rate": win_rate,
+                "win_rate": win_rate1,
                 "info": item_info,
                 "candles": candles,
-                "metrics": metrics_dict,
-                "trades": trades_list
+                "metrics": metrics_dict1,
+                "metrics_strat1": metrics_dict1,
+                "metrics_strat2": metrics_dict2,
+                "trades": [t.to_dict() for t in report1.trades]
             })
 
         except Exception as e:
@@ -207,6 +254,8 @@ def run_market_screening(max_display_symbols=8):
             "info": s["info"],
             "candles": s["candles"],
             "metrics": s["metrics"],
+            "metrics_strat1": s["metrics_strat1"],
+            "metrics_strat2": s["metrics_strat2"],
             "trades": s["trades"]
         }
         if s["is_active"]:

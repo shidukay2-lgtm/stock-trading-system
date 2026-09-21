@@ -8,7 +8,7 @@ class TradingChart {
         this.containerId = containerId;
     }
 
-    render(analyzedCandles, symbolInfo, activePosition = null) {
+    render(analyzedCandles, symbolInfo, activePosition = null, strategyId = "triple_confluence") {
         if (!analyzedCandles || analyzedCandles.length === 0) return;
 
         const times = analyzedCandles.map(c => c.time);
@@ -17,20 +17,14 @@ class TradingChart {
         const lows = analyzedCandles.map(c => c.low);
         const closes = analyzedCandles.map(c => c.close);
         const volumes = analyzedCandles.map(c => c.volume);
-        const ema10 = analyzedCandles.map(c => c.ema10);
-        const ema25 = analyzedCandles.map(c => c.ema25);
-        const macdHist = analyzedCandles.map(c => c.macdHist);
         const rsi = analyzedCandles.map(c => c.rsi);
+
+        const isStrategy2 = (strategyId === "orderbook_vwap") || Boolean(analyzedCandles[0] && analyzedCandles[0].vwap !== undefined);
 
         // 買いシグナルポイント抽出
         const buySignals = analyzedCandles.filter(c => c.isBuySignal);
         const buyTimes = buySignals.map(c => c.time);
         const buyPrices = buySignals.map(c => c.close);
-
-        // 3段サブプロット構成
-        // 1. ローソク足 + EMA10 + EMA25 + 買いシグナルマーカー
-        // 2. MACD ヒストグラム
-        // 3. RSI(14)
 
         const traces = [
             // (1) ローソク足
@@ -41,79 +35,148 @@ class TradingChart {
                 high: highs,
                 low: lows,
                 close: closes,
-                name: "OHLC",
+                name: "株価 (OHLC)",
                 increasing: { line: { color: "#00e676", width: 1.5 }, fillcolor: "rgba(0, 230, 118, 0.4)" },
                 decreasing: { line: { color: "#ff5252", width: 1.5 }, fillcolor: "rgba(255, 82, 82, 0.4)" },
                 xaxis: "x",
                 yaxis: "y"
-            },
-            // (2) EMA10
-            {
-                type: "scatter",
-                mode: "lines",
-                x: times,
-                y: ema10,
-                name: "EMA 10 (短期)",
-                line: { color: "#00e5ff", width: 1.8 },
-                xaxis: "x",
-                yaxis: "y"
-            },
-            // (3) EMA25
-            {
-                type: "scatter",
-                mode: "lines",
-                x: times,
-                y: ema25,
-                name: "EMA 25 (長期)",
-                line: { color: "#b388ff", width: 1.8 },
-                xaxis: "x",
-                yaxis: "y"
-            },
-            // (4) 買いシグナルマーカー (▲)
-            {
-                type: "scatter",
-                mode: "markers",
-                x: buyTimes,
-                y: buyPrices,
-                name: "BUY シグナル (▲)",
-                marker: { symbol: "triangle-up", size: 12, color: "#00e676", line: { width: 1.5, color: "#ffffff" } },
-                hovertext: buySignals.map(s => `【BUY推奨】<br>株価: ¥${s.close}<br>利確目標(+6%): ¥${s.takeProfitPrice.toFixed(1)}<br>損切ライン(-2.5%): ¥${s.stopLossPrice.toFixed(1)}`),
-                hoverinfo: "text",
-                xaxis: "x",
-                yaxis: "y"
-            },
-            // (5) MACD ヒストグラム (サブプロット2)
-            {
-                type: "bar",
-                x: times,
-                y: macdHist,
-                name: "MACD Hist",
-                marker: {
-                    color: macdHist.map(h => (h >= 0 ? "#00e676" : "#ff5252"))
-                },
-                xaxis: "x",
-                yaxis: "y2"
-            },
-            // (6) RSI(14) (サブプロット3)
-            {
-                type: "scatter",
-                mode: "lines",
-                x: times,
-                y: rsi,
-                name: "RSI(14)",
-                line: { color: "#ffd740", width: 1.8 },
-                xaxis: "x",
-                yaxis: "y3"
             }
         ];
 
+        if (isStrategy2) {
+            // 戦略2: VWAP + EMA20 + EMA50 + 板気配インバランス
+            const vwap = analyzedCandles.map(c => c.vwap);
+            const ema20 = analyzedCandles.map(c => c.ema20);
+            const ema50 = analyzedCandles.map(c => c.ema50);
+            const bidAskRatio = analyzedCandles.map(c => c.bidAskRatio || 1.0);
+
+            traces.push(
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: vwap,
+                    name: "VWAP (出来高加重平均)",
+                    line: { color: "#ffd740", width: 2.2, dash: "solid" },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema20,
+                    name: "EMA 20",
+                    line: { color: "#00e5ff", width: 1.6 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema50,
+                    name: "EMA 50",
+                    line: { color: "#b388ff", width: 1.6 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "bar",
+                    x: times,
+                    y: bidAskRatio,
+                    name: "板気配比率 (Bid/Ask)",
+                    marker: {
+                        color: bidAskRatio.map(r => (r >= 1.25 ? "#00e676" : "#4a5568"))
+                    },
+                    xaxis: "x",
+                    yaxis: "y2"
+                }
+            );
+        } else {
+            // 戦略1: EMA10 + EMA25 + MACD
+            const ema10 = analyzedCandles.map(c => c.ema10);
+            const ema25 = analyzedCandles.map(c => c.ema25);
+            const macdHist = analyzedCandles.map(c => c.macdHist);
+
+            traces.push(
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema10,
+                    name: "EMA 10 (短期)",
+                    line: { color: "#00e5ff", width: 1.8 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema25,
+                    name: "EMA 25 (長期)",
+                    line: { color: "#b388ff", width: 1.8 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "bar",
+                    x: times,
+                    y: macdHist,
+                    name: "MACD Hist",
+                    marker: {
+                        color: macdHist.map(h => (h >= 0 ? "#00e676" : "#ff5252"))
+                    },
+                    xaxis: "x",
+                    yaxis: "y2"
+                }
+            );
+        }
+
+        // 買いシグナルマーカー (▲)
+        traces.push({
+            type: "scatter",
+            mode: "markers",
+            x: buyTimes,
+            y: buyPrices,
+            name: "BUY シグナル (▲)",
+            marker: { symbol: "triangle-up", size: 13, color: "#00e676", line: { width: 1.5, color: "#ffffff" } },
+            hovertext: buySignals.map(s => `【BUY推奨】<br>株価: ¥${s.close}<br>利確目標(+6%): ¥${s.takeProfitPrice.toFixed(1)}<br>損切ライン(-2.5%): ¥${s.stopLossPrice.toFixed(1)}`),
+            hoverinfo: "text",
+            xaxis: "x",
+            yaxis: "y"
+        });
+
+        // RSI(14) (サブプロット3)
+        traces.push({
+            type: "scatter",
+            mode: "lines",
+            x: times,
+            y: rsi,
+            name: "RSI(14)",
+            line: { color: "#ffd740", width: 1.8 },
+            xaxis: "x",
+            yaxis: "y3"
+        });
+
+        // サブプロットラベル設定
+        const y2Title = isStrategy2 ? "板気配インバランス" : "MACD";
+
         // 保有中ポジションの損切り・利確・買値ラインおよび領域シェード
         const shapes = [
-            // RSI 70過熱ライン & 30売られすぎライン & 48基準ライン
             { type: "line", x0: times[0], x1: times[times.length - 1], y0: 70, y1: 70, yref: "y3", line: { color: "rgba(255, 82, 82, 0.4)", dash: "dot", width: 1 } },
-            { type: "line", x0: times[0], x1: times[times.length - 1], y0: 48, y1: 48, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
+            { type: "line", x0: times[0], x1: times[times.length - 1], y0: isStrategy2 ? 50 : 48, y1: isStrategy2 ? 50 : 48, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
             { type: "line", x0: times[0], x1: times[times.length - 1], y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } }
         ];
+
+        if (isStrategy2) {
+            // 板気配比率 1.25 基準ライン
+            shapes.push({
+                type: "line", x0: times[0], x1: times[times.length - 1], y0: 1.25, y1: 1.25, yref: "y2",
+                line: { color: "rgba(0, 230, 118, 0.7)", dash: "dash", width: 1.2 }
+            });
+        }
 
         const annotations = [];
 
@@ -236,7 +299,7 @@ class TradingChart {
             yaxis2: {
                 domain: [0.22, 0.40],
                 gridcolor: "#1f293d",
-                title: "MACD"
+                title: y2Title
             },
             yaxis3: {
                 domain: [0.0, 0.18],
