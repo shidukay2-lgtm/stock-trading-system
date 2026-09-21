@@ -6,21 +6,7 @@
     "maxAllocationPct": 0.4,
     "updatedAt": "2026-09-21T08:45:00.000Z"
   },
-  "positions": [
-    {
-      "symbol": "4477.T",
-      "symbolName": "BASE",
-      "entryTime": "2026-09-18 15:00",
-      "entryPrice": 338,
-      "shares": 300,
-      "investmentAmount": 101400,
-      "stopLossPrice": 329.55,
-      "takeProfitPrice": 358.28000000000003,
-      "strategyName": "HighWin_TripleConfluence",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 (300株 (100株単元・複利運用))"
-    }
-  ],
+  "positions": [],
   "trades": [],
   "notes": {},
   "equityHistory": [
