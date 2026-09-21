@@ -4,6 +4,7 @@
  * - 東証取引時間帯（開場/閉場）自動ステータス判定
  * - 勝率65%以上・100株単元<=10万円の動的トップ5〜10銘柄リバランス
  * - シグナル点灯日時の明示 & マルチチャネル自動通知
+ * - サーバーDB永続化 & 動的勝率集計 & 複利運用・資産推移グラフ可視化
  */
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -13,25 +14,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     const chart = new TradingChart("main-chart-container");
 
     let symbolsData = null;
-    let currentSymbolCode = "4436.T"; // 初期選択
+    let currentSymbolCode = "4477.T"; // 初期選択
+    let currentChartMode = "candle"; // 'candle' または 'equity'
     let refreshCountdown = 30;
     let isRefreshing = false;
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader) ---
-    function processAutoTrading() {
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・複利再投資対応) ---
+    async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
         if (!dataStore.autoTradingEnabled) return;
 
         // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了)
         const currentPositions = [...dataStore.positions];
-        currentPositions.forEach(pos => {
+        for (const pos of currentPositions) {
             const sym = symbolsData.symbols[pos.symbol];
-            if (!sym || !sym.candles || sym.candles.length === 0) return;
+            if (!sym || !sym.candles || sym.candles.length === 0) continue;
 
             const latest = sym.candles[sym.candles.length - 1];
-            const currentClose = latest.close;
-            const currentHigh = latest.high || currentClose;
-            const currentLow = latest.low || currentClose;
+            const currentClose = Number(latest.close);
+            const currentHigh = Number(latest.high) || currentClose;
+            const currentLow = Number(latest.low) || currentClose;
 
             // 保有バー数の更新 (エントリー時刻以降のバー数を正確に集計)
             let barsCount = 0;
@@ -67,15 +69,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (exitPrice !== null && exitReason !== null) {
                 console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
-                const closedTrade = dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason}`);
+                const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason}`);
                 if (closedTrade) {
                     notifier.notifyTradeExit(closedTrade, pos.symbolName);
                 }
             }
-        });
+        }
 
-        // 2. 新規買いシグナルの自動エントリーチェック
-        const maxConcurrentPositions = 3; // 同時保有上限
+        // 2. 新規買いシグナルの自動エントリーチェック (複利資金プール連動)
+        const maxConcurrentPositions = 3; // 同時保有上限 (最大3銘柄分散)
         if (dataStore.positions.length < maxConcurrentPositions) {
             const symKeys = Object.keys(symbolsData.symbols);
             for (const code of symKeys) {
@@ -89,8 +91,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const latest = analyzed[analyzed.length - 1];
 
                 if (latest && latest.isBuySignal) {
-                    const orderCalc = strategy.calculateOrderSize(latest.close);
-                    if (orderCalc.shares > 0 && orderCalc.investment <= 100000) {
+                    // 複利設定に基づき注文サイズを自動計算 (100株単元厳守)
+                    const orderCalc = strategy.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
+                    if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
                         const entryPrice = latest.close;
                         const pos = {
                             symbol: sym.info.code,
@@ -103,11 +106,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                             takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + 0.060)),
                             strategyName: "HighWin_TripleConfluence",
                             holdingBars: 1,
-                            notes: "🤖 リアルタイム自動売買エントリー約定 (HighWin_TripleConfluence)"
+                            notes: `🤖 リアルタイム自動売買エントリー約定 (${orderCalc.note})`
                         };
 
                         console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
-                        dataStore.addPosition(pos);
+                        await dataStore.addPosition(pos);
                         notifier.notifyBuySignal(sym.info, latest, orderCalc, pos.entryTime);
                     }
                 }
@@ -140,7 +143,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try { processAutoTrading(); } catch(e) { console.error("processAutoTrading Error:", e); }
         try { updateAutoTradeButtonUI(); } catch(e) { console.error("updateAutoTradeButtonUI Error:", e); }
 
-        // 初期選択銘柄の調整（選択中の銘柄が存在しない場合は先頭銘柄）
+        // 初期選択銘柄の調整
         const keys = Object.keys(symbolsData.symbols);
         if (keys.length > 0 && (!currentSymbolCode || !symbolsData.symbols[currentSymbolCode])) {
             currentSymbolCode = keys[0];
@@ -155,7 +158,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try { renderSummaryKPIs(); } catch(e) { console.error("renderSummaryKPIs Error:", e); }
     }
 
-    // --- 1. データロード (API優先 / 静的JSONフォールバック) ---
+    // --- 1. データロード (サーバーDB同期 ＋ 相場データ取得) ---
     async function loadData(showLoadingIndicator = false) {
         if (isRefreshing && !showLoadingIndicator) return;
         isRefreshing = true;
@@ -164,6 +167,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (btnRefreshText && showLoadingIndicator) {
             btnRefreshText.innerText = "相場データ取得中...";
         }
+
+        // サーバーDBからアカウント・トレード履歴を同期
+        await dataStore.syncFromServer();
 
         try {
             // サーバーAPIから最新マーケットデータを取得 (キャッシュ回避)
@@ -265,7 +271,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             chip.dataset.code = code;
 
             const currentPrice = Number(latest.close) || Number(info.current_price_approx) || 500;
-            const orderCalc = strategy.calculateOrderSize(currentPrice);
+            const orderCalc = strategy.calculateOrderSize(currentPrice, dataStore.cash, dataStore.compoundingEnabled);
 
             let statusBadgeHtml = "";
             let detailsHtml = "";
@@ -370,7 +376,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 5. 銘柄選択 & 画面更新 ---
+    // --- 5. 銘柄選択 & チャート・画面更新 ---
     function selectSymbol(code) {
         currentSymbolCode = code;
 
@@ -385,9 +391,39 @@ document.addEventListener("DOMContentLoaded", async () => {
         const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : { close: 500, isBuySignal: false };
         const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === code) : null;
 
-        chart.render(analyzed, sym.info, activePos);
+        if (currentChartMode === "equity") {
+            chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+        } else {
+            chart.render(analyzed, sym.info, activePos);
+        }
+
         updateSignalBanner(sym.info, latest, activePos, sym.metrics);
         updateFundamentalCard(sym.info, sym.metrics);
+    }
+
+    // --- チャートタブ切替 ---
+    function initChartTabs() {
+        const btnCandle = document.getElementById("tab-btn-candle");
+        const btnEquity = document.getElementById("tab-btn-equity");
+        const subBadge = document.getElementById("chart-sub-badge");
+
+        if (!btnCandle || !btnEquity) return;
+
+        btnCandle.addEventListener("click", () => {
+            currentChartMode = "candle";
+            btnCandle.className = "btn btn-primary";
+            btnEquity.className = "btn btn-secondary";
+            if (subBadge) subBadge.innerText = "時間軸: 1h / 損切 -2.5% / 利確 +6%";
+            selectSymbol(currentSymbolCode);
+        });
+
+        btnEquity.addEventListener("click", () => {
+            currentChartMode = "equity";
+            btnEquity.className = "btn btn-primary";
+            btnCandle.className = "btn btn-secondary";
+            if (subBadge) subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
+            chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+        });
     }
 
     // --- 6. シグナル通知バナー更新 ---
@@ -395,7 +431,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const banner = document.getElementById("signal-banner");
         if (!banner) return;
         const currentClose = Number(latest.close) || 500;
-        const orderCalc = strategy.calculateOrderSize(currentClose);
+        const orderCalc = strategy.calculateOrderSize(currentClose, dataStore.cash, dataStore.compoundingEnabled);
         const signalTime = latest.time || (metrics && metrics.latest_signal_time) || "2026-09-18 09:00";
         const winRate = (metrics && metrics.win_rate_pct) ? metrics.win_rate_pct : 68.5;
 
@@ -552,7 +588,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         modal.classList.add("active");
 
-        document.getElementById("btn-confirm-entry").onclick = () => {
+        document.getElementById("btn-confirm-entry").onclick = async () => {
             const price = parseFloat(document.getElementById("entry-modal-price").value);
             const shares = parseInt(document.getElementById("entry-modal-shares").value);
             
@@ -562,8 +598,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
 
             const investment = Math.round(price * shares);
-            if (investment > 100000) {
-                alert("⚠️ 1回の投資上限は10万円以下です。");
+            if (investment > dataStore.cash) {
+                alert(`⚠️ 投資資金（買付余力 ¥${Math.round(dataStore.cash).toLocaleString()}）が不足しています。`);
                 return;
             }
 
@@ -581,7 +617,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 notes: document.getElementById("entry-modal-notes").value
             };
 
-            dataStore.addPosition(pos);
+            await dataStore.addPosition(pos);
             modal.classList.remove("active");
             renderSymbolSelector();
             updateGlobalSignalTicker();
@@ -602,13 +638,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         modal.classList.add("active");
 
-        document.getElementById("btn-confirm-exit").onclick = () => {
+        document.getElementById("btn-confirm-exit").onclick = async () => {
             const exitPrice = parseFloat(document.getElementById("exit-modal-price").value);
             const reason = document.getElementById("exit-modal-reason").value;
             const note = document.getElementById("exit-modal-notes").value;
             const tags = document.getElementById("exit-modal-tags").value;
 
-            dataStore.closePosition(pos.symbol, exitPrice, reason, note, tags);
+            await dataStore.closePosition(pos.symbol, exitPrice, reason, note, tags);
             modal.classList.remove("active");
             renderSymbolSelector();
             updateGlobalSignalTicker();
@@ -616,6 +652,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             renderPositionsTable();
             renderTradesTable();
             renderSummaryKPIs();
+            if (currentChartMode === "equity") {
+                chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+            }
         };
     }
 
@@ -661,7 +700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const allTrades = dataStore.trades;
         if (allTrades.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:20px;">記録されたトレード履歴はありません</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:20px;">記録されたトレード履歴はありません</td></tr>`;
             return;
         }
 
@@ -683,10 +722,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function renderSummaryKPIs() {
         const stats = dataStore.getSummaryStats();
-        document.getElementById("kpi-total-trades").innerText = `${stats.totalTrades} 回`;
-        document.getElementById("kpi-winrate").innerText = `${stats.winRate}%`;
-        document.getElementById("kpi-total-pnl").innerText = `${stats.totalPnl >= 0 ? '+' : ''}¥${stats.totalPnl.toLocaleString()}`;
-        document.getElementById("kpi-pf").innerText = stats.profitFactor;
+        const investedAmount = dataStore.positions.reduce((sum, p) => sum + (Number(p.investmentAmount) || 0), 0);
+        const totalEquity = Math.round(dataStore.cash + investedAmount);
+        const returnPct = dataStore.initialCapital > 0 ? (((totalEquity - dataStore.initialCapital) / dataStore.initialCapital) * 100).toFixed(2) : "0.00";
+
+        const elTrades = document.getElementById("kpi-total-trades");
+        const elWinLoss = document.getElementById("kpi-win-loss-count");
+        const elWinrate = document.getElementById("kpi-winrate");
+        const elWinrateSub = document.getElementById("kpi-winrate-sub");
+        const elEquity = document.getElementById("kpi-total-equity");
+        const elCapitalSub = document.getElementById("kpi-capital-sub");
+        const elTotalPnl = document.getElementById("kpi-total-pnl");
+        const elPnlSub = document.getElementById("kpi-pnl-sub");
+        const elPf = document.getElementById("kpi-pf");
+
+        if (elTrades) elTrades.innerText = `${stats.totalTrades} 回`;
+        if (elWinLoss) elWinLoss.innerText = `${stats.winCount}勝 ${stats.lossCount}敗`;
+        if (elWinrate) {
+            elWinrate.innerText = `${stats.winRate}%`;
+            elWinrate.className = `kpi-val ${stats.winRate >= 60 ? 'val-green' : (stats.winRate >= 50 ? 'val-yellow' : 'val-red')}`;
+        }
+        if (elWinrateSub) {
+            elWinrateSub.innerText = stats.totalTrades === 0 ? "過去バックテスト値準拠" : `実トレード実績でリアルタイム更新 (${stats.winCount}勝/${stats.totalTrades}回)`;
+        }
+        if (elEquity) elEquity.innerText = `¥${totalEquity.toLocaleString()}`;
+        if (elCapitalSub) elCapitalSub.innerText = `元本 ¥${dataStore.initialCapital.toLocaleString()} | 複利再投資: ${dataStore.compoundingEnabled ? 'ON' : 'OFF'}`;
+        if (elTotalPnl) {
+            elTotalPnl.innerText = `${stats.totalPnl >= 0 ? '+' : ''}¥${stats.totalPnl.toLocaleString()} (${returnPct >= 0 ? '+' : ''}${returnPct}%)`;
+            elTotalPnl.className = `kpi-val ${stats.totalPnl >= 0 ? 'val-green' : 'val-red'}`;
+        }
+        if (elPnlSub) elPnlSub.innerText = `買付可能残高: ¥${Math.round(dataStore.cash).toLocaleString()}`;
+        if (elPf) elPf.innerText = stats.profitFactor;
     }
 
     // --- 10. 定期自動ポーリング (30秒) & 手動更新ボタン連携 ---
@@ -727,7 +793,55 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }, 1000);
 
-    // --- 11. 通知設定モーダル初期化 ---
+    // --- 11. 資金・複利設定モーダル初期化 ---
+    function initCapitalSettingsModal() {
+        const modal = document.getElementById("capital-modal");
+        const btnOpen = document.getElementById("btn-open-capital-settings");
+        const inputCap = document.getElementById("input-initial-capital");
+        const checkCompound = document.getElementById("check-compounding-enabled");
+        const btnSave = document.getElementById("btn-save-capital-settings");
+        const btnReset = document.getElementById("btn-reset-trading-data");
+
+        if (!modal || !btnOpen) return;
+
+        btnOpen.addEventListener("click", () => {
+            if (inputCap) inputCap.value = dataStore.initialCapital;
+            if (checkCompound) checkCompound.checked = dataStore.compoundingEnabled;
+            modal.classList.add("active");
+        });
+
+        if (btnSave) {
+            btnSave.addEventListener("click", async () => {
+                const newCap = parseFloat(inputCap.value) || 300000;
+                const newCompound = checkCompound.checked;
+
+                await dataStore.updateAccountSettings(newCap, newCompound, false);
+                modal.classList.remove("active");
+                renderAllUI();
+                if (currentChartMode === "equity") {
+                    chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+                }
+                alert("💾 資金・複利設定を保存・反映しました！");
+            });
+        }
+
+        if (btnReset) {
+            btnReset.addEventListener("click", async () => {
+                if (confirm("⚠️ 本当にこれまでの取引実績・損益・資産推移履歴をリセットして元本に戻しますか？\n（サーバーDBも初期化されます）")) {
+                    const currentCap = parseFloat(inputCap.value) || dataStore.initialCapital;
+                    await dataStore.updateAccountSettings(currentCap, checkCompound.checked, true);
+                    modal.classList.remove("active");
+                    renderAllUI();
+                    if (currentChartMode === "equity") {
+                        chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+                    }
+                    alert("🔄 取引実績・資産履歴をリセットしました。");
+                }
+            });
+        }
+    }
+
+    // --- 12. 通知設定モーダル初期化 ---
     function initNotifySettingsModal() {
         const modal = document.getElementById("notify-settings-modal");
         const btnOpen = document.getElementById("btn-open-notify-settings");
@@ -886,7 +1000,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    // 初回ロード
-    loadData(true);
+    // 初期化と起動
+    initChartTabs();
+    initCapitalSettingsModal();
     initNotifySettingsModal();
+    loadData(true);
 });

@@ -196,6 +196,226 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // --- 永続化データベース管理 (data/user_trading_data.json) ---
+  const USER_DATA_FILE = path.join(__dirname, 'data', 'user_trading_data.json');
+
+  function loadUserData() {
+    try {
+      if (fs.existsSync(USER_DATA_FILE)) {
+        const raw = fs.readFileSync(USER_DATA_FILE, 'utf8');
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.error('[DB] ユーザーデータ読み込みエラー:', e.message);
+    }
+    const defaultData = {
+      account: {
+        initialCapital: 300000,
+        cash: 300000,
+        compoundingEnabled: true,
+        maxAllocationPct: 0.40,
+        updatedAt: new Date().toISOString()
+      },
+      positions: [],
+      trades: [],
+      notes: {},
+      equityHistory: [
+        {
+          time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          equity: 300000,
+          cash: 300000,
+          positionsValue: 0,
+          realizedPnl: 0,
+          unrealizedPnl: 0,
+          returnPct: 0.0,
+          note: "運用開始 (元本 ¥300,000)"
+        }
+      ]
+    };
+    saveUserData(defaultData);
+    return defaultData;
+  }
+
+  function saveUserData(data) {
+    try {
+      const dataDir = path.dirname(USER_DATA_FILE);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      fs.writeFileSync(USER_DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
+      return true;
+    } catch (e) {
+      console.error('[DB] ユーザーデータ保存エラー:', e.message);
+      return false;
+    }
+  }
+
+  // API 4: アカウント・資産・複利設定 (/api/account)
+  if (pathname === '/api/account') {
+    if (req.method === 'GET') {
+      const data = loadUserData();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, account: data.account, equityHistory: data.equityHistory || [] }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+          const data = loadUserData();
+          
+          if (payload.reset) {
+            const initCap = Number(payload.initialCapital) || 300000;
+            data.account = {
+              initialCapital: initCap,
+              cash: initCap,
+              compoundingEnabled: payload.compoundingEnabled !== undefined ? payload.compoundingEnabled : true,
+              maxAllocationPct: 0.40,
+              updatedAt: new Date().toISOString()
+            };
+            data.positions = [];
+            data.trades = [];
+            data.equityHistory = [{
+              time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              equity: initCap,
+              cash: initCap,
+              positionsValue: 0,
+              realizedPnl: 0,
+              unrealizedPnl: 0,
+              returnPct: 0.0,
+              note: `データリセット (元本 ¥${initCap.toLocaleString()})`
+            }];
+          } else {
+            if (payload.initialCapital !== undefined) data.account.initialCapital = Number(payload.initialCapital);
+            if (payload.cash !== undefined) data.account.cash = Number(payload.cash);
+            if (payload.compoundingEnabled !== undefined) data.account.compoundingEnabled = Boolean(payload.compoundingEnabled);
+            if (payload.maxAllocationPct !== undefined) data.account.maxAllocationPct = Number(payload.maxAllocationPct);
+            data.account.updatedAt = new Date().toISOString();
+          }
+
+          saveUserData(data);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, account: data.account, equityHistory: data.equityHistory }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      });
+      return;
+    }
+  }
+
+  // API 5: トレード履歴永続化 (/api/trades)
+  if (pathname === '/api/trades') {
+    if (req.method === 'GET') {
+      const data = loadUserData();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, trades: data.trades || [] }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const trade = JSON.parse(body);
+          const data = loadUserData();
+          if (!data.trades) data.trades = [];
+          
+          // 重複チェック
+          const existingIdx = data.trades.findIndex(t => t.trade_id === trade.trade_id);
+          if (existingIdx >= 0) {
+            data.trades[existingIdx] = trade;
+          } else {
+            data.trades.unshift(trade);
+          }
+
+          // 複利口座残高の更新
+          const pnl = Number(trade.pnl_amount) || 0;
+          if (data.account.compoundingEnabled) {
+            data.account.cash = Math.max(0, (data.account.cash || data.account.initialCapital) + pnl);
+          }
+          data.account.updatedAt = new Date().toISOString();
+
+          // 資産推移スナップショットの記録
+          const wins = data.trades.filter(t => t.pnl_amount > 0);
+          const totalRealizedPnl = data.trades.reduce((sum, t) => sum + (Number(t.pnl_amount) || 0), 0);
+          const currentTotalEquity = (data.account.initialCapital || 300000) + totalRealizedPnl;
+          const returnPct = ((currentTotalEquity - data.account.initialCapital) / data.account.initialCapital) * 100;
+
+          if (!data.equityHistory) data.equityHistory = [];
+          data.equityHistory.push({
+            time: trade.exit_time || new Date().toISOString().replace('T', ' ').substring(0, 16),
+            equity: currentTotalEquity,
+            cash: data.account.cash,
+            positionsValue: 0,
+            realizedPnl: totalRealizedPnl,
+            unrealizedPnl: 0,
+            returnPct: parseFloat(returnPct.toFixed(2)),
+            note: `${trade.symbol_name} (${trade.symbol}) 決済: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${trade.exit_reason})`
+          });
+
+          saveUserData(data);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, trades: data.trades, account: data.account, equityHistory: data.equityHistory }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      });
+      return;
+    }
+  }
+
+  // API 6: 保有ポジション永続化 (/api/positions)
+  if (pathname === '/api/positions' || pathname.startsWith('/api/positions/')) {
+    if (req.method === 'GET') {
+      const data = loadUserData();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, positions: data.positions || [] }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        try {
+          const pos = JSON.parse(body);
+          const data = loadUserData();
+          if (!data.positions) data.positions = [];
+          
+          const idx = data.positions.findIndex(p => p.symbol === pos.symbol);
+          if (idx >= 0) {
+            data.positions[idx] = pos;
+          } else {
+            data.positions.push(pos);
+          }
+
+          saveUserData(data);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: true, positions: data.positions }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      const symbol = decodeURIComponent(pathname.replace('/api/positions/', '').replace('/api/positions', ''));
+      const data = loadUserData();
+      if (symbol && data.positions) {
+        data.positions = data.positions.filter(p => p.symbol !== symbol);
+        saveUserData(data);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, positions: data.positions || [] }));
+      return;
+    }
+  }
+
   // 静的ファイル配信
   const safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
   let filePath = path.join(WEB_DIR, safePath);

@@ -32,6 +32,9 @@
             <button class="btn" id="btn-toggle-autotrade" style="padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px; background: rgba(0, 230, 118, 0.15); border: 1px solid var(--accent-green); color: var(--accent-green); cursor: pointer; font-weight: 600;">
                 🤖 <span id="autotrade-status-text">自動売買: ON</span>
             </button>
+            <button class="btn btn-secondary" id="btn-open-capital-settings" style="padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px; border-color: #b388ff; color: #b388ff;">
+                💰 資金・複利設定
+            </button>
             <button class="btn btn-secondary" id="btn-manual-refresh-now" style="padding: 6px 14px; font-size: 13px; display: flex; align-items: center; gap: 6px; border-color: var(--primary);">
                 🔄 <span id="btn-refresh-text">今すぐ相場更新</span>
             </button>
@@ -62,22 +65,27 @@
             </div>
         </section>
         
-        <!-- 通算 KPI サマリー -->
-        <section class="kpi-grid">
+        <!-- 通算 KPI サマリー (動的勝率 & 複利総資産連動) -->
+        <section class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
             <div class="kpi-card">
                 <span class="kpi-label">通算トレード数</span>
                 <span class="kpi-val" id="kpi-total-trades">0 回</span>
-                <span class="kpi-sub">リアル & バックテスト</span>
+                <span class="kpi-sub" id="kpi-win-loss-count">0勝 0敗</span>
             </div>
             <div class="kpi-card">
-                <span class="kpi-label">勝率 (Win Rate)</span>
+                <span class="kpi-label">リアル勝率 (変動集計)</span>
                 <span class="kpi-val val-green" id="kpi-winrate">0.0%</span>
-                <span class="kpi-sub">目標: 70% 水準</span>
+                <span class="kpi-sub" id="kpi-winrate-sub">実トレード実績でリアルタイム更新</span>
             </div>
             <div class="kpi-card">
-                <span class="kpi-label">通算実現損益</span>
-                <span class="kpi-val val-cyan" id="kpi-total-pnl">¥0</span>
-                <span class="kpi-sub">NISA非課税運用</span>
+                <span class="kpi-label">現在総資産 (運用残高)</span>
+                <span class="kpi-val val-cyan" id="kpi-total-equity">¥300,000</span>
+                <span class="kpi-sub" id="kpi-capital-sub">元本 ¥300,000 | 複利再投資: ON</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">通算実現損益 / 複利リターン</span>
+                <span class="kpi-val val-green" id="kpi-total-pnl">¥0 (+0.0%)</span>
+                <span class="kpi-sub" id="kpi-pnl-sub">全トレード累計</span>
             </div>
             <div class="kpi-card">
                 <span class="kpi-label">プロフィットファクター</span>
@@ -102,11 +110,14 @@
         <!-- メイングリッド (チャート & ファンダメンタルズ/操作パネル) -->
         <div class="main-grid">
             
-            <!-- チャートカード -->
+            <!-- チャートカード (タブ切替対応) -->
             <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">📊 1時間足 インタラクティブチャート (EMA10/25・MACD・RSI)</h2>
-                    <span class="chip-badge">時間軸: 1h / 損切 -2.5% / 利確 +6%</span>
+                <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="btn btn-primary" id="tab-btn-candle" style="padding: 5px 12px; font-size: 13px;">📊 1時間足テクニカル</button>
+                        <button class="btn btn-secondary" id="tab-btn-equity" style="padding: 5px 12px; font-size: 13px;">📈 資産推移・複利成長カーブ</button>
+                    </div>
+                    <span class="chip-badge" id="chart-sub-badge">時間軸: 1h / 損切 -2.5% / 利確 +6%</span>
                 </div>
                 <div id="main-chart-container" style="width: 100%; height: 550px;"></div>
             </div>
@@ -435,6 +446,54 @@
             <!-- モーダルフッター -->
             <div style="display: flex; gap: 10px; margin-top: 14px;">
                 <button class="btn btn-primary" style="flex: 1;" id="btn-save-notify-settings">💾 設定を保存する</button>
+                <button class="btn btn-secondary modal-close-btn" style="flex: 1;">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 資金・複利設定モーダル -->
+    <div class="modal-overlay" id="capital-modal">
+        <div class="modal-card" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">💰 投資資金・複利再投資 設定</h3>
+                <button class="modal-close-btn">&times;</button>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 12px;">
+                <div>
+                    <label style="font-size: 13px; color: var(--text-muted); font-weight: 600;">初期投資資金 (元本)</label>
+                    <div style="position: relative; margin-top: 6px;">
+                        <input type="number" id="input-initial-capital" class="input-field" value="300000" step="50000" min="100000" style="padding-left: 28px; font-size: 16px; font-weight: 700; color: var(--accent-green);">
+                        <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 700;">¥</span>
+                    </div>
+                    <span style="font-size: 11px; color: var(--text-dim); margin-top: 4px; display: block;">※ 推奨: 30万円〜100万円 (東証100株単元で複数銘柄分散)</span>
+                </div>
+
+                <div class="notify-channel-card" style="margin: 0; background: rgba(0, 229, 255, 0.05); border-color: rgba(0, 229, 255, 0.3);">
+                    <div class="notify-channel-header">
+                        <div>
+                            <span style="font-weight: 700; color: #00e5ff;">🔄 売買利益の再投資 (複利運用モード)</span>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">利食い達成時の確定利益を次回以降の運用資金プールに合算し、株数を100株単位で自動拡大します。</div>
+                        </div>
+                        <label class="switch"><input type="checkbox" id="check-compounding-enabled" checked><span class="slider"></span></label>
+                    </div>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+                    <b style="color: var(--text-main);">📌 複利運用の自動ロット計算ルール:</b><br>
+                    ・1銘柄あたりの買付枠 ＝ 運用残高の約35% (最大3銘柄分散)<br>
+                    ・必ず <b>100株単位（単元株）</b> で自動スケールアップ（単元未満株は排除）<br>
+                    ・例: 30万円時は200株 ➔ 利益が出て45万円になると300株へ拡大
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11px; color: var(--text-muted);">実績データのリセット:</span>
+                    <button class="btn btn-danger" id="btn-reset-trading-data" style="padding: 4px 10px; font-size: 11px;">⚠️ 取引実績・資産履歴をリセット</button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 16px;">
+                <button class="btn btn-primary" style="flex: 1;" id="btn-save-capital-settings">💾 設定を保存して反映</button>
                 <button class="btn btn-secondary modal-close-btn" style="flex: 1;">閉じる</button>
             </div>
         </div>

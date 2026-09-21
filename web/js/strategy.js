@@ -118,31 +118,49 @@ class TripleConfluenceStrategy {
     }
 
     /**
-     * 推奨ポジションサイズ（株数と投資額）を計算 (100株単元株のみ・10万円以下厳守)
+     * 推奨ポジションサイズ（株数と投資額）を計算 (100株単元株のみ・複利再投資対応)
      */
-    calculateOrderSize(price, availableCash = 300000.0) {
-        const budget = Math.min(this.params.maxBudget, availableCash);
+    calculateOrderSize(price, availableCash = 300000.0, compoundingEnabled = true) {
+        if (!price || price <= 0) {
+            return { shares: 0, investment: 0, isUnitLot: false, note: "価格取得エラー" };
+        }
+
         const lotCost = price * 100;
-        
-        if (!price || price <= 0 || lotCost > budget) {
+        if (lotCost > availableCash) {
             return {
                 shares: 0,
                 investment: 0,
                 isUnitLot: false,
-                note: `購入不可 (100株単元 ¥${Math.round(lotCost).toLocaleString()} > 10万円)`
+                note: `資金不足 (100株単元 ¥${Math.round(lotCost).toLocaleString()} > 残高 ¥${Math.round(availableCash).toLocaleString()})`
             };
+        }
+
+        // 複利運用モード (ON) の場合は運用残高の約35%を上限にロットを自動拡大 (OFFの場合は1回10万円上限)
+        let budget;
+        if (compoundingEnabled) {
+            const dynamicLimit = Math.max(100000.0, availableCash * 0.35);
+            budget = Math.min(dynamicLimit, availableCash);
+        } else {
+            budget = Math.min(this.params.maxBudget, availableCash);
         }
 
         // 100株単元（単元未満株は完全排除）
         const maxLots = Math.floor(budget / lotCost);
-        const shares = maxLots * 100;
-        const investment = Math.round(shares * price);
+        const shares = Math.max(100, maxLots * 100);
+        
+        // 残高超過防止
+        const finalShares = (shares * price <= availableCash) ? shares : Math.floor(availableCash / lotCost) * 100;
+        const investment = Math.round(finalShares * price);
+
+        if (finalShares <= 0) {
+            return { shares: 0, investment: 0, isUnitLot: false, note: `購入不可 (残高 ¥${Math.round(availableCash).toLocaleString()})` };
+        }
 
         return {
-            shares: shares,
+            shares: finalShares,
             investment: investment,
             isUnitLot: true,
-            note: `${shares}株 (100株単元)`
+            note: `${finalShares}株 (100株単元・${compoundingEnabled ? '複利運用' : '固定枠'})`
         };
     }
 }

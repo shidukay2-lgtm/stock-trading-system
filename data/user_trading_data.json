@@ -1,0 +1,24 @@
+{
+  "account": {
+    "initialCapital": 300000,
+    "cash": 300000,
+    "compoundingEnabled": true,
+    "maxAllocationPct": 0.4,
+    "updatedAt": "2026-09-21T06:58:00.000Z"
+  },
+  "positions": [],
+  "trades": [],
+  "notes": {},
+  "equityHistory": [
+    {
+      "time": "2026-09-21 06:58",
+      "equity": 300000,
+      "cash": 300000,
+      "positionsValue": 0,
+      "realizedPnl": 0,
+      "unrealizedPnl": 0,
+      "returnPct": 0,
+      "note": "運用開始 (元本 ¥300,000)"
+    }
+  ]
+}

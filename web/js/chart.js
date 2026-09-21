@@ -256,6 +256,105 @@ class TradingChart {
 
         Plotly.newPlot(this.containerId, traces, layout, config);
     }
+
+    /**
+     * 資産推移・複利成長カーブ (Equity Curve) を描画
+     */
+    renderEquityCurve(equityHistory = [], initialCapital = 300000) {
+        if (!equityHistory || equityHistory.length === 0) return;
+
+        const times = equityHistory.map(h => h.time);
+        const equities = equityHistory.map(h => Number(h.equity));
+        const returnPcts = equityHistory.map(h => Number(h.returnPct));
+        const notes = equityHistory.map(h => h.note || "");
+
+        const latestEquity = equities[equities.length - 1] || initialCapital;
+        const totalProfit = latestEquity - initialCapital;
+        const totalProfitPct = initialCapital > 0 ? (totalProfit / initialCapital) * 100 : 0;
+        const isProfitable = totalProfit >= 0;
+
+        const mainColor = isProfitable ? "#00e676" : "#ff5252";
+        const fillColor = isProfitable ? "rgba(0, 230, 118, 0.15)" : "rgba(255, 82, 82, 0.15)";
+
+        const traces = [
+            // 1. 総資産推移ライン (エリア塗りつぶし)
+            {
+                type: "scatter",
+                mode: "lines+markers",
+                x: times,
+                y: equities,
+                name: "総資産 (円)",
+                line: { color: mainColor, width: 2.5 },
+                marker: { size: 6, color: mainColor, symbol: "circle" },
+                fill: "tozeroy",
+                fillcolor: fillColor,
+                hovertext: equityHistory.map(h => `日時: ${h.time}<br>総資産: ¥${Number(h.equity).toLocaleString()}<br>確定損益累計: ${Number(h.realizedPnl) >= 0 ? '+' : ''}¥${Number(h.realizedPnl).toLocaleString()}<br>リターン: ${Number(h.returnPct) >= 0 ? '+' : ''}${h.returnPct}%<br>📝 ${h.note || ''}`),
+                hoverinfo: "text",
+                yaxis: "y"
+            },
+            // 2. 元本基準ライン
+            {
+                type: "scatter",
+                mode: "lines",
+                x: [times[0], times[times.length - 1]],
+                y: [initialCapital, initialCapital],
+                name: `初期元本 (¥${initialCapital.toLocaleString()})`,
+                line: { color: "rgba(255, 255, 255, 0.4)", width: 1.5, dash: "dash" },
+                hoverinfo: "skip",
+                yaxis: "y"
+            }
+        ];
+
+        const annotations = [
+            {
+                x: times[times.length - 1],
+                y: latestEquity,
+                xref: "x",
+                yref: "y",
+                text: `💰 現在総資産: ¥${latestEquity.toLocaleString()}<br>(${isProfitable ? '+' : ''}¥${totalProfit.toLocaleString()} / ${isProfitable ? '+' : ''}${totalProfitPct.toFixed(2)}%)`,
+                showarrow: true,
+                arrowhead: 2,
+                arrowsize: 1,
+                arrowcolor: mainColor,
+                ax: 40,
+                ay: -30,
+                bgcolor: mainColor,
+                font: { color: "#0b0f19", size: 11, weight: "bold" },
+                bordercolor: "#ffffff",
+                borderwidth: 1,
+                borderpad: 5
+            }
+        ];
+
+        const layout = {
+            template: "plotly_dark",
+            paper_bgcolor: "#0b0f19",
+            plot_bgcolor: "#111827",
+            margin: { l: 60, r: 80, t: 40, b: 40 },
+            height: window.innerWidth < 768 ? 480 : 580,
+            showlegend: true,
+            legend: { orientation: "h", y: 1.05, x: 1, xanchor: "right" },
+            hovermode: "x unified",
+            xaxis: {
+                gridcolor: "#1f293d",
+                title: "トレード日時 / 決済タイミング"
+            },
+            yaxis: {
+                gridcolor: "#1f293d",
+                title: "総資産 (円)",
+                zerolinecolor: "#1f293d"
+            },
+            annotations: annotations
+        };
+
+        const config = {
+            responsive: true,
+            displayModeBar: false,
+            scrollZoom: true
+        };
+
+        Plotly.newPlot(this.containerId, traces, layout, config);
+    }
 }
 
 window.TradingChart = TradingChart;
