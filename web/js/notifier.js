@@ -20,8 +20,8 @@ class NotificationManager {
                 toEmail: ""
             },
             chat: {
-                discordEnabled: false,
-                discordWebhook: "",
+                discordEnabled: true,
+                discordWebhook: "https://discord.com/api/webhooks/1551577859389136908/k439dh4UYByMDUW3Cj9rQDDnRzoKGd07DDB5_kweUdDV7-pDHEIbs-Hbd1cb4hLO4s_f",
                 slackEnabled: false,
                 slackWebhook: "",
                 lineEnabled: false,
@@ -45,7 +45,16 @@ class NotificationManager {
             const raw = localStorage.getItem(this.storageKey);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                return Object.assign({}, this.defaultSettings, parsed);
+                const merged = Object.assign({}, this.defaultSettings, parsed);
+                if (parsed.chat) {
+                    merged.chat = Object.assign({}, this.defaultSettings.chat, parsed.chat);
+                    // Webhook URLが空の場合はデフォルトURLを使用
+                    if (!merged.chat.discordWebhook) {
+                        merged.chat.discordWebhook = this.defaultSettings.chat.discordWebhook;
+                        merged.chat.discordEnabled = true;
+                    }
+                }
+                return merged;
             }
         } catch (e) {
             console.error("通知設定読み込みエラー:", e);
