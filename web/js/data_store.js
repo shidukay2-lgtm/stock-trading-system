@@ -307,23 +307,46 @@ class DataStore {
         return trade;
     }
 
-    // --- 5. 通算統計 & 動的勝率の算出 ---
-    getSummaryStats() {
+    // --- 5. 通算統計 & 動的勝率・時価総資産の算出 ---
+    getSummaryStats(currentMarketPrices = {}) {
         const allTrades = this.trades;
         const wins = allTrades.filter(t => Number(t.pnl_amount) > 0);
         const losses = allTrades.filter(t => Number(t.pnl_amount) <= 0);
 
         const totalProfit = wins.reduce((sum, t) => sum + Number(t.pnl_amount), 0);
         const totalLoss = Math.abs(losses.reduce((sum, t) => sum + Number(t.pnl_amount), 0));
-        const totalPnl = Math.round(totalProfit - totalLoss);
+        const totalRealizedPnl = Math.round(totalProfit - totalLoss);
         const pf = totalLoss > 0 ? (totalProfit / totalLoss) : (totalProfit > 0 ? 99.9 : 0);
 
         const winRate = allTrades.length > 0 
             ? parseFloat(((wins.length / allTrades.length) * 100).toFixed(1))
             : 0.0;
 
-        const totalEquity = this.initialCapital + totalPnl;
-        const returnPct = parseFloat((((totalEquity - this.initialCapital) / this.initialCapital) * 100).toFixed(2));
+        // 保有中ポジションの時価評価と含み損益
+        let totalInvested = 0;
+        let totalPositionsMarketValue = 0;
+        let totalUnrealizedPnl = 0;
+
+        this.positions.forEach(pos => {
+            const currentPrice = Number(currentMarketPrices[pos.symbol]) || Number(pos.entryPrice);
+            const posInvest = Number(pos.investmentAmount) || (Number(pos.entryPrice) * Number(pos.shares));
+            const posMarketVal = currentPrice * Number(pos.shares);
+            const posUnrealized = posMarketVal - posInvest;
+
+            totalInvested += posInvest;
+            totalPositionsMarketValue += posMarketVal;
+            totalUnrealizedPnl += posUnrealized;
+        });
+
+        // 総資産 = 現金残高 + 保有株の時価総額 (ポジション0件時は initialCapital + totalRealizedPnl と完全一致)
+        const totalEquity = this.positions.length > 0
+            ? Math.round(this.cash + totalPositionsMarketValue)
+            : Math.round(this.initialCapital + totalRealizedPnl);
+
+        const totalPnl = Math.round(totalRealizedPnl + totalUnrealizedPnl);
+        const returnPct = this.initialCapital > 0 
+            ? parseFloat((((totalEquity - this.initialCapital) / this.initialCapital) * 100).toFixed(2))
+            : 0.0;
 
         return {
             totalTrades: allTrades.length,
@@ -333,9 +356,13 @@ class DataStore {
             losses: losses.length,
             winRate: winRate,
             totalPnl: totalPnl,
+            realizedPnl: totalRealizedPnl,
+            unrealizedPnl: Math.round(totalUnrealizedPnl),
+            totalInvested: Math.round(totalInvested),
+            totalMarketValue: Math.round(totalPositionsMarketValue),
             profitFactor: parseFloat(pf.toFixed(2)),
             initialCapital: this.initialCapital,
-            cash: this.cash,
+            cash: Math.round(this.cash),
             totalEquity: totalEquity,
             returnPct: returnPct,
             compoundingEnabled: this.compoundingEnabled

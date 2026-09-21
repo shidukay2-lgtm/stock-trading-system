@@ -332,15 +332,18 @@ const server = http.createServer((req, res) => {
             data.trades.unshift(trade);
           }
 
-          // 複利口座残高の更新
+          // 複利口座残高の更新 (拘束されていた元本 + 確定損益を現金口座に返却)
+          const invest = Number(trade.investment_amount) || (trade.entry_price * trade.shares) || 0;
           const pnl = Number(trade.pnl_amount) || 0;
-          if (data.account.compoundingEnabled) {
-            data.account.cash = Math.max(0, (data.account.cash || data.account.initialCapital) + pnl);
-          }
+          data.account.cash = Math.max(0, (data.account.cash || 0) + invest + pnl);
           data.account.updatedAt = new Date().toISOString();
 
+          // 決済されたポジションを削除
+          if (data.positions) {
+            data.positions = data.positions.filter(p => p.symbol !== trade.symbol);
+          }
+
           // 資産推移スナップショットの記録
-          const wins = data.trades.filter(t => t.pnl_amount > 0);
           const totalRealizedPnl = data.trades.reduce((sum, t) => sum + (Number(t.pnl_amount) || 0), 0);
           const currentTotalEquity = (data.account.initialCapital || 300000) + totalRealizedPnl;
           const returnPct = ((currentTotalEquity - data.account.initialCapital) / data.account.initialCapital) * 100;
@@ -354,12 +357,12 @@ const server = http.createServer((req, res) => {
             realizedPnl: totalRealizedPnl,
             unrealizedPnl: 0,
             returnPct: parseFloat(returnPct.toFixed(2)),
-            note: `${trade.symbol_name} (${trade.symbol}) 決済: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${trade.exit_reason})`
+            note: `${trade.symbol_name || trade.symbol} 決済: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${trade.exit_reason})`
           });
 
           saveUserData(data);
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ success: true, trades: data.trades, account: data.account, equityHistory: data.equityHistory }));
+          res.end(JSON.stringify({ success: true, trades: data.trades, account: data.account, positions: data.positions, equityHistory: data.equityHistory }));
         } catch (e) {
           res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: e.message }));
@@ -387,15 +390,20 @@ const server = http.createServer((req, res) => {
           if (!data.positions) data.positions = [];
           
           const idx = data.positions.findIndex(p => p.symbol === pos.symbol);
+          const invest = Number(pos.investmentAmount) || (pos.entryPrice * pos.shares);
+
           if (idx >= 0) {
             data.positions[idx] = pos;
           } else {
             data.positions.push(pos);
+            // 新規エントリー時に買付現金を正しく拘束（減少）
+            data.account.cash = Math.max(0, (data.account.cash || data.account.initialCapital) - invest);
+            data.account.updatedAt = new Date().toISOString();
           }
 
           saveUserData(data);
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ success: true, positions: data.positions }));
+          res.end(JSON.stringify({ success: true, positions: data.positions, account: data.account }));
         } catch (e) {
           res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ success: false, error: e.message }));

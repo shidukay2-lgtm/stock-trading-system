@@ -721,10 +721,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function renderSummaryKPIs() {
-        const stats = dataStore.getSummaryStats();
-        const investedAmount = dataStore.positions.reduce((sum, p) => sum + (Number(p.investmentAmount) || 0), 0);
-        const totalEquity = Math.round(dataStore.cash + investedAmount);
-        const returnPct = dataStore.initialCapital > 0 ? (((totalEquity - dataStore.initialCapital) / dataStore.initialCapital) * 100).toFixed(2) : "0.00";
+        // 現在株価マップの構築
+        const currentPrices = {};
+        if (symbolsData && symbolsData.symbols) {
+            Object.keys(symbolsData.symbols).forEach(code => {
+                const sym = symbolsData.symbols[code];
+                if (sym && sym.candles && sym.candles.length > 0) {
+                    currentPrices[code] = sym.candles[sym.candles.length - 1].close;
+                } else if (sym && sym.info && sym.info.current_price_approx) {
+                    currentPrices[code] = sym.info.current_price_approx;
+                }
+            });
+        }
+
+        const stats = dataStore.getSummaryStats(currentPrices);
+        const totalEquity = stats.totalEquity;
+        const returnPct = stats.returnPct;
 
         const elTrades = document.getElementById("kpi-total-trades");
         const elWinLoss = document.getElementById("kpi-win-loss-count");
@@ -737,13 +749,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         const elPf = document.getElementById("kpi-pf");
 
         if (elTrades) elTrades.innerText = `${stats.totalTrades} 回`;
-        if (elWinLoss) elWinLoss.innerText = `${stats.winCount}勝 ${stats.lossCount}敗`;
+        if (elWinLoss) {
+            elWinLoss.innerText = stats.totalTrades > 0 
+                ? `${stats.winCount}勝 ${stats.lossCount}敗` 
+                : (dataStore.positions.length > 0 ? `保有中: ${dataStore.positions.length}銘柄` : `0勝 0敗`);
+        }
         if (elWinrate) {
-            elWinrate.innerText = `${stats.winRate}%`;
-            elWinrate.className = `kpi-val ${stats.winRate >= 60 ? 'val-green' : (stats.winRate >= 50 ? 'val-yellow' : 'val-red')}`;
+            elWinrate.innerText = stats.totalTrades > 0 ? `${stats.winRate}%` : `0.0%`;
+            elWinrate.className = `kpi-val ${stats.winRate >= 60 ? 'val-green' : (stats.winRate >= 50 ? 'val-yellow' : 'val-muted')}`;
         }
         if (elWinrateSub) {
-            elWinrateSub.innerText = stats.totalTrades === 0 ? "過去バックテスト値準拠" : `実トレード実績でリアルタイム更新 (${stats.winCount}勝/${stats.totalTrades}回)`;
+            elWinrateSub.innerText = stats.totalTrades === 0 
+                ? (dataStore.positions.length > 0 ? "保有中 (決済後に勝率集計)" : "トレード待機中 (決済後に集計)")
+                : `実トレード実績でリアルタイム更新 (${stats.winCount}勝/${stats.totalTrades}回)`;
         }
         if (elEquity) elEquity.innerText = `¥${totalEquity.toLocaleString()}`;
         if (elCapitalSub) elCapitalSub.innerText = `元本 ¥${dataStore.initialCapital.toLocaleString()} | 複利再投資: ${dataStore.compoundingEnabled ? 'ON' : 'OFF'}`;
@@ -751,8 +769,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             elTotalPnl.innerText = `${stats.totalPnl >= 0 ? '+' : ''}¥${stats.totalPnl.toLocaleString()} (${returnPct >= 0 ? '+' : ''}${returnPct}%)`;
             elTotalPnl.className = `kpi-val ${stats.totalPnl >= 0 ? 'val-green' : 'val-red'}`;
         }
-        if (elPnlSub) elPnlSub.innerText = `買付可能残高: ¥${Math.round(dataStore.cash).toLocaleString()}`;
-        if (elPf) elPf.innerText = stats.profitFactor;
+        if (elPnlSub) {
+            if (dataStore.positions.length > 0 && stats.unrealizedPnl !== 0) {
+                elPnlSub.innerText = `買付余力: ¥${Math.round(dataStore.cash).toLocaleString()} (含み損益: ${stats.unrealizedPnl >= 0 ? '+' : ''}¥${stats.unrealizedPnl.toLocaleString()})`;
+            } else {
+                elPnlSub.innerText = `買付可能残高: ¥${Math.round(dataStore.cash).toLocaleString()}`;
+            }
+        }
+        if (elPf) elPf.innerText = stats.totalTrades > 0 ? stats.profitFactor : "0.00";
     }
 
     // --- 10. 定期自動ポーリング (30秒) & 手動更新ボタン連携 ---
