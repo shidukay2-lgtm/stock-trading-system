@@ -1,23 +1,52 @@
 {
   "account": {
     "initialCapital": 300000,
-    "cash": 300000,
+    "cash": 134500,
     "compoundingEnabled": true,
     "maxAllocationPct": 0.4,
-    "updatedAt": "2026-09-24 14:23:00"
+    "updatedAt": "2026-09-24T23:04:45.946Z"
   },
-  "positions": [],
+  "positions": [
+    {
+      "symbol": "7383.T",
+      "symbolName": "ネットプロHD",
+      "entryTime": "2026-09-24 15:00",
+      "entryPrice": 396,
+      "shares": 200,
+      "investmentAmount": 79200,
+      "stopLossPrice": 393.624,
+      "takeProfitPrice": 400.752,
+      "strategyName": "HighWin_MTF_Scalping_Breakout",
+      "strategyDisplayName": "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
+      "holdingBars": 1,
+      "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: 高速デイトレ] (200株 (100株単元・複利運用))"
+    },
+    {
+      "symbol": "5246.T",
+      "symbolName": "ELEMENTS",
+      "entryTime": "2026-09-24 15:00",
+      "entryPrice": 863,
+      "shares": 100,
+      "investmentAmount": 86300,
+      "stopLossPrice": 857.822,
+      "takeProfitPrice": 873.356,
+      "strategyName": "HighWin_MTF_Scalping_Breakout",
+      "strategyDisplayName": "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
+      "holdingBars": 1,
+      "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: 高速デイトレ] (100株 (100株単元・複利運用))"
+    }
+  ],
   "trades": [],
   "equityHistory": [
     {
-      "time": "2026-09-24 14:23",
+      "time": "2026-09-25 08:04:00",
       "equity": 300000,
       "cash": 300000,
       "positionsValue": 0,
       "realizedPnl": 0,
       "unrealizedPnl": 0,
-      "returnPct": 0.0,
-      "note": "初期元本設定"
+      "returnPct": 0,
+      "note": "初期元本設定 (デイトレ持ち越しクリア)"
     }
   ]
 }

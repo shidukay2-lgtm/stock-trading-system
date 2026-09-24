@@ -384,19 +384,31 @@ class TradingChart {
             let entryIndex = -1;
             if (activePosition.entryTime) {
                 const entryPrefix = String(activePosition.entryTime).substring(0, 16);
+                const entryDatePrefix = String(activePosition.entryTime).substring(0, 10);
                 for (let i = times.length - 1; i >= 0; i--) {
                     if (times[i].startsWith(entryPrefix) || times[i] <= entryPrefix) {
                         entryIndex = i;
                         break;
                     }
                 }
+                // 見つからない場合は日付マッチまたは最新足
+                if (entryIndex < 0) {
+                    for (let i = times.length - 1; i >= 0; i--) {
+                        if (times[i].startsWith(entryDatePrefix)) {
+                            entryIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (entryIndex < 0) entryIndex = Math.max(0, times.length - 1);
             }
 
             if (entryIndex >= 0) {
                 const entryTimeStr = times[entryIndex];
+                const displayEntryTime = activePosition.entryTime || entryTimeStr;
                 annotations.push({
                     x: entryTimeStr, y: entryP, xref: "x", yref: "y",
-                    text: `◆ ENTRY 約定<br>¥${entryP.toLocaleString()}<br>${entryTimeStr}`,
+                    text: `◆ ENTRY 約定<br>¥${entryP.toLocaleString()}<br>⏰ ${displayEntryTime}`,
                     showarrow: true, arrowhead: 3, arrowcolor: "#00e5ff",
                     ax: 0, ay: -40,
                     bgcolor: "rgba(0, 229, 255, 0.95)", font: { color: "#0b0f19", size: 10, weight: "bold" },

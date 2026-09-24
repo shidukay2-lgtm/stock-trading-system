@@ -5,9 +5,9 @@
  */
 
 /**
- * 日本時間 (JST: UTC+9) の現在日時文字列 (YYYY-MM-DD HH:mm) を生成する共通ヘルパー
+ * 日本時間 (JST: UTC+9) の現在日時文字列 (YYYY-MM-DD HH:mm:ss または HH:mm) を生成する共通ヘルパー
  */
-function getNowJSTString(includeSeconds = false) {
+function getNowJSTString(includeSeconds = true) {
     const now = new Date();
     // JST = UTC+9
     const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));

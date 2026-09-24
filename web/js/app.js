@@ -56,18 +56,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 同一足または決済直後の無限再エントリーを防ぐクールダウン管理
     const exitCooldownMap = {};
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・複利対応・誤損切防止) ---
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・高速スキャル・デイトレ持ち越し完全防止) ---
     async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
         if (!dataStore.autoTradingEnabled) return;
 
-        const getJst = window.getNowJSTString || function() {
+        const getJst = window.getNowJSTString || function(includeSeconds = true) {
             const now = new Date();
             const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-            return jst.toISOString().replace("T", " ").substring(0, 16);
+            const y = jst.getUTCFullYear();
+            const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(jst.getUTCDate()).padStart(2, '0');
+            const h = String(jst.getUTCHours()).padStart(2, '0');
+            const min = String(jst.getUTCMinutes()).padStart(2, '0');
+            const sec = String(jst.getUTCSeconds()).padStart(2, '0');
+            return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
         };
 
-        // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了)
+        const nowJstStr = getJst(true);
+        const todayDateStr = nowJstStr.substring(0, 10); // YYYY-MM-DD
+        const currentHour = parseInt(nowJstStr.substring(11, 13), 10);
+        const currentMin = parseInt(nowJstStr.substring(14, 16), 10);
+        // 大引け時間帯判定 (平日14:50〜15:00 または 15:00以降の市場終了時)
+        const isMarketCloseTime = (currentHour === 14 && currentMin >= 50) || (currentHour >= 15);
+
+        // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了 / 持ち越し防止 / 大引け手仕舞い)
         const currentPositions = [...dataStore.positions];
         for (const pos of currentPositions) {
             const sym = symbolsData.symbols[pos.symbol];
@@ -78,48 +91,78 @@ document.addEventListener("DOMContentLoaded", async () => {
             const currentHigh = Number(latest.high) || currentClose;
             const currentLow = Number(latest.low) || currentClose;
 
-            // 保有バー数の更新 (エントリー時刻以降のバー数を正確に集計)
+            // 保有バー数の更新
             let barsCount = 0;
+            const entryPrefix = String(pos.entryTime || "").substring(0, 16);
             for (let i = 0; i < sym.candles.length; i++) {
-                if (sym.candles[i].time >= pos.entryTime) {
+                if (sym.candles[i].time >= entryPrefix || sym.candles[i].time.substring(0, 10) >= pos.entryTime.substring(0, 10)) {
                     barsCount++;
                 }
             }
             pos.holdingBars = Math.max(1, barsCount);
 
-            const isScalpPos = (pos.strategyName && pos.strategyName.includes("Scalping"));
-            const maxHoldingBars = isScalpPos ? 10 : 15;
+            const isScalpPos = (pos.strategyName && (pos.strategyName.includes("Scalping") || pos.strategyName.includes("mtf_scalping")));
+            const entryDateStr = String(pos.entryTime || "").substring(0, 10);
+            const isOvernight = Boolean(entryDateStr && entryDateStr < todayDateStr);
+
+            // 実時間経過分数の計算 (スキャルピングの高速イグジット用)
+            let elapsedMinutes = 0;
+            try {
+                const cleanEntryTime = pos.entryTime.replace(' ', 'T') + '+09:00';
+                const entryEpoch = new Date(cleanEntryTime).getTime();
+                const nowEpoch = Date.now();
+                if (!isNaN(entryEpoch) && entryEpoch > 0) {
+                    elapsedMinutes = Math.max(0, Math.floor((nowEpoch - entryEpoch) / (60 * 1000)));
+                }
+            } catch (e) {}
 
             let exitPrice = null;
             let exitReason = null;
             let exitNote = "";
 
-            // --- 決済条件判定 (デイトレ・リアルタイム誤損切防止) ---
-            // (1) 利確判定 (目標価格到達)
-            if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
+            // --- 決済条件判定 (デイトレ・高速スキャルピング厳格ルール) ---
+            // (A) 【重要】デイトレ日跨ぎ持ち越し防止の強制成行決済 (前日エントリーの持ち越しを即時排除)
+            if (isScalpPos && isOvernight) {
+                exitPrice = currentClose;
+                exitReason = "DAY_OVER_TIMEOUT";
+                exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
+            }
+            // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50以降または市場終了後の即時全手仕舞い)
+            else if (isScalpPos && isMarketCloseTime) {
+                exitPrice = currentClose;
+                exitReason = "MARKET_CLOSE";
+                exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
+            }
+            // (C) 利確判定 (目標価格到達: 戦略3は+1.2%, 他は+6.0%)
+            else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
                 exitPrice = Math.max(pos.takeProfitPrice, currentClose);
                 exitReason = "TAKE_PROFIT";
-                exitNote = `🎯 自動利食い約定 (目標達成: ¥${exitPrice.toLocaleString()})`;
+                exitNote = isScalpPos ? `🎯 高速利食い約定 (+1.2%達成: ¥${exitPrice.toLocaleString()})` : `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
             }
-            // (2) 損切判定
-            // ※重要: エントリーした同一足 (barsCount <= 1) では過去安値(latest.low)を見ず、現在のリアルタイム価格(currentClose)のみで判定
-            // 次の足以降 (barsCount > 1) に進んで初めてその足の安値(currentLow)または現在値を参照
+            // (D) 損切判定 (損切りライン到達: 戦略3は-0.6%, 他は-2.5%)
+            // ※同一足ではリアルタイム現在値(currentClose)で判定し、過去安値による誤爆を防止
             else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
                 exitPrice = Math.min(pos.stopLossPrice, currentClose);
                 exitReason = "STOP_LOSS";
-                exitNote = `🛑 自動損切り約定 (損切り到達: ¥${exitPrice.toLocaleString()})`;
+                exitNote = isScalpPos ? `🛑 高速損切り約定 (-0.6%到達: ¥${exitPrice.toLocaleString()})` : `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
             }
-            // (3) 保有期限満了 (戦略3なら10本/約30〜60分、他は15本/3営業日)
-            else if (pos.holdingBars >= maxHoldingBars) {
+            // (E) スキャルピング保有時間満了 (実時間30分〜60分経過、または10バー経過)
+            else if (isScalpPos && (elapsedMinutes >= 30 || pos.holdingBars >= 10)) {
                 exitPrice = currentClose;
                 exitReason = "TIMEOUT";
-                exitNote = `⌛ 保有期限満了決済 (${maxHoldingBars}バー経過: ¥${exitPrice.toLocaleString()})`;
+                exitNote = `⌛ スキャルピング保有期限満了決済 (${elapsedMinutes > 0 ? elapsedMinutes + '分' : pos.holdingBars + 'バー'}経過: ¥${exitPrice.toLocaleString()})`;
+            }
+            // (F) スイング戦略の通常期限満了 (15バー経過)
+            else if (!isScalpPos && pos.holdingBars >= 15) {
+                exitPrice = currentClose;
+                exitReason = "TIMEOUT";
+                exitNote = `⌛ スイング保有期限満了決済 (15バー/3営業日経過: ¥${exitPrice.toLocaleString()})`;
             }
 
             if (exitPrice !== null && exitReason !== null) {
                 console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 戦略: ${pos.strategyName}, 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
                 
-                // クールダウン登録（同一足での即時再エントリーを防止）
+                // クールダウン登録（同一足・直近5分での即時再エントリーを防止）
                 exitCooldownMap[pos.symbol] = {
                     candleTime: latest.time,
                     timestamp: Date.now(),
@@ -176,11 +219,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const orderCalc = stratInstance.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
                         if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
                             const entryPrice = latest.close;
-                            const entryTimeStr = latest.time || getJst();
+                            // リアルタイム秒付き現在日時で約定記録
+                            const realtimeEntryTime = getJst(true);
                             const pos = {
                                 symbol: sym.info.code,
                                 symbolName: sym.info.name,
-                                entryTime: entryTimeStr,
+                                entryTime: realtimeEntryTime,
                                 entryPrice: entryPrice,
                                 shares: orderCalc.shares,
                                 investmentAmount: orderCalc.investment,
@@ -192,7 +236,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 notes: `🤖 リアルタイム自動売買エントリー約定 [${stratMeta.shortName || stratMeta.name}] (${orderCalc.note})`
                             };
 
-                            console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
+                            console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}, 約定日時: ${pos.entryTime}`);
                             await dataStore.addPosition(pos);
                             notifier.notifyBuySignal(sym.info, latest, orderCalc, stratMeta);
                             break; // 1銘柄につき1エントリー
@@ -904,16 +948,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
-            const getJst = window.getNowJSTString || function() {
+            const getJst = window.getNowJSTString || function(includeSeconds = true) {
                 const now = new Date();
                 const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-                return jst.toISOString().replace("T", " ").substring(0, 16);
+                const y = jst.getUTCFullYear();
+                const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+                const d = String(jst.getUTCDate()).padStart(2, '0');
+                const h = String(jst.getUTCHours()).padStart(2, '0');
+                const min = String(jst.getUTCMinutes()).padStart(2, '0');
+                const sec = String(jst.getUTCSeconds()).padStart(2, '0');
+                return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
             };
 
             const pos = {
                 symbol: info.code,
                 symbolName: info.name,
-                entryTime: signalTime || getJst(),
+                entryTime: getJst(true), // リアルタイム秒付き約定時刻
                 entryPrice: price,
                 shares: shares,
                 investmentAmount: investment,
@@ -966,7 +1016,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
-    // --- 9. ポジション一覧・履歴・KPI (戦略バッジ明示) ---
+    // --- 9. ポジション一覧・履歴・KPI (戦略バッジ明示 & リアルタイム経過時間表示) ---
     function renderPositionsTable() {
         const tbody = document.getElementById("positions-table-body");
         tbody.innerHTML = "";
@@ -984,11 +1034,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
             const stratBadge = getStrategyBadgeHtml(pos.strategyName);
 
+            // 経過時間の計算
+            let elapsedStr = "";
+            try {
+                const cleanEntryTime = pos.entryTime.replace(' ', 'T') + '+09:00';
+                const entryEpoch = new Date(cleanEntryTime).getTime();
+                const diffMin = Math.max(0, Math.floor((Date.now() - entryEpoch) / (60 * 1000)));
+                if (diffMin < 60) {
+                    elapsedStr = `(${diffMin}分前)`;
+                } else {
+                    const diffHours = Math.floor(diffMin / 60);
+                    elapsedStr = `(${diffHours}時間${diffMin % 60}分前)`;
+                }
+            } catch (e) {}
+
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>
                     <b>${pos.symbolName}</b> (${pos.symbol})<br>
-                    <span style="font-size:11px; color:var(--text-dim)">${pos.entryTime}</span><br>
+                    <span style="font-size:11px; color:#00e5ff;">⏰ ${pos.entryTime} <span style="color:var(--text-muted); font-size:10px;">${elapsedStr}</span></span><br>
                     ${stratBadge}
                 </td>
                 <td>¥${pos.entryPrice.toLocaleString()}</td>
