@@ -1,6 +1,9 @@
 /**
  * インタラクティブチャート描画モジュール (web/js/chart.js)
- * Plotly.js を使用したローソク足、EMA10/EMA25、MACD、RSI、シグナルマーカー描画
+ * - Plotly.js を使用した1時間足ローソク足、EMA10/EMA25/EMA50、MACD、RSI、VWAP、板気配インバランス描画
+ * - 画面更新・切り替えごとの最新レート即時反映 (Current Price Horizon & Badges)
+ * - ポジション保有中の決済タイミング（利確+6% / 損切-2.5% / 15バー保有期限）の直感的可視化
+ * - 未エントリー時の想定利確/損切シミュレーションガイド
  */
 
 class TradingChart {
@@ -19,6 +22,14 @@ class TradingChart {
         const volumes = analyzedCandles.map(c => c.volume);
         const rsi = analyzedCandles.map(c => c.rsi);
 
+        const lastIndex = analyzedCandles.length - 1;
+        const lastTime = times[lastIndex];
+        const currentPrice = closes[lastIndex] || (symbolInfo && symbolInfo.current_price_approx) || 500;
+        const prevPrice = lastIndex > 0 ? closes[lastIndex - 1] : currentPrice;
+        const priceChange = currentPrice - prevPrice;
+        const priceChangePct = prevPrice > 0 ? (priceChange / prevPrice) * 100 : 0;
+        const changeSign = priceChange >= 0 ? "+" : "";
+
         const isStrategy2 = (strategyId === "orderbook_vwap") || Boolean(analyzedCandles[0] && analyzedCandles[0].vwap !== undefined);
 
         // 買いシグナルポイント抽出
@@ -27,7 +38,7 @@ class TradingChart {
         const buyPrices = buySignals.map(c => c.close);
 
         const traces = [
-            // (1) ローソク足
+            // (1) 1時間足 ローソク足
             {
                 type: "candlestick",
                 x: times,
@@ -45,10 +56,10 @@ class TradingChart {
 
         if (isStrategy2) {
             // 戦略2: VWAP + EMA20 + EMA50 + 板気配インバランス
-            const vwap = analyzedCandles.map(c => c.vwap);
-            const ema20 = analyzedCandles.map(c => c.ema20);
-            const ema50 = analyzedCandles.map(c => c.ema50);
-            const bidAskRatio = analyzedCandles.map(c => c.bidAskRatio || 1.0);
+            const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
+            const ema20 = analyzedCandles.map(c => c.ema20 !== undefined ? c.ema20 : c.close);
+            const ema50 = analyzedCandles.map(c => c.ema50 !== undefined ? c.ema50 : c.close);
+            const bidAskRatio = analyzedCandles.map(c => c.bidAskRatio !== undefined ? c.bidAskRatio : (c.bid_ask_imbalance || 1.0));
 
             traces.push(
                 {
@@ -97,7 +108,7 @@ class TradingChart {
             // 戦略1: EMA10 + EMA25 + MACD
             const ema10 = analyzedCandles.map(c => c.ema10);
             const ema25 = analyzedCandles.map(c => c.ema25);
-            const macdHist = analyzedCandles.map(c => c.macdHist);
+            const macdHist = analyzedCandles.map(c => c.macdHist || 0);
 
             traces.push(
                 {
@@ -135,18 +146,20 @@ class TradingChart {
         }
 
         // 買いシグナルマーカー (▲)
-        traces.push({
-            type: "scatter",
-            mode: "markers",
-            x: buyTimes,
-            y: buyPrices,
-            name: "BUY シグナル (▲)",
-            marker: { symbol: "triangle-up", size: 13, color: "#00e676", line: { width: 1.5, color: "#ffffff" } },
-            hovertext: buySignals.map(s => `【BUY推奨】<br>株価: ¥${s.close}<br>利確目標(+6%): ¥${s.takeProfitPrice.toFixed(1)}<br>損切ライン(-2.5%): ¥${s.stopLossPrice.toFixed(1)}`),
-            hoverinfo: "text",
-            xaxis: "x",
-            yaxis: "y"
-        });
+        if (buyTimes.length > 0) {
+            traces.push({
+                type: "scatter",
+                mode: "markers",
+                x: buyTimes,
+                y: buyPrices,
+                name: "BUY シグナル (▲)",
+                marker: { symbol: "triangle-up", size: 13, color: "#00e676", line: { width: 1.5, color: "#ffffff" } },
+                hovertext: buySignals.map(s => `【BUY推奨点灯】<br>日時: ${s.time}<br>株価: ¥${s.close}<br>利確目標(+6%): ¥${s.takeProfitPrice ? s.takeProfitPrice.toFixed(1) : (s.close * 1.06).toFixed(1)}<br>損切ライン(-2.5%): ¥${s.stopLossPrice ? s.stopLossPrice.toFixed(1) : (s.close * 0.975).toFixed(1)}`),
+                hoverinfo: "text",
+                xaxis: "x",
+                yaxis: "y"
+            });
+        }
 
         // RSI(14) (サブプロット3)
         traces.push({
@@ -161,32 +174,55 @@ class TradingChart {
         });
 
         // サブプロットラベル設定
-        const y2Title = isStrategy2 ? "板気配インバランス" : "MACD";
+        const y2Title = isStrategy2 ? "板気配比率" : "MACD";
 
-        // 保有中ポジションの損切り・利確・買値ラインおよび領域シェード
+        // シェイプとアノテーションの構築
         const shapes = [
-            { type: "line", x0: times[0], x1: times[times.length - 1], y0: 70, y1: 70, yref: "y3", line: { color: "rgba(255, 82, 82, 0.4)", dash: "dot", width: 1 } },
-            { type: "line", x0: times[0], x1: times[times.length - 1], y0: isStrategy2 ? 50 : 48, y1: isStrategy2 ? 50 : 48, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
-            { type: "line", x0: times[0], x1: times[times.length - 1], y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } }
+            // RSI 水平基準ライン
+            { type: "line", x0: times[0], x1: lastTime, y0: 70, y1: 70, yref: "y3", line: { color: "rgba(255, 82, 82, 0.4)", dash: "dot", width: 1 } },
+            { type: "line", x0: times[0], x1: lastTime, y0: isStrategy2 ? 50 : 48, y1: isStrategy2 ? 50 : 48, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
+            { type: "line", x0: times[0], x1: lastTime, y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } }
         ];
 
         if (isStrategy2) {
             // 板気配比率 1.25 基準ライン
             shapes.push({
-                type: "line", x0: times[0], x1: times[times.length - 1], y0: 1.25, y1: 1.25, yref: "y2",
+                type: "line", x0: times[0], x1: lastTime, y0: 1.25, y1: 1.25, yref: "y2",
                 line: { color: "rgba(0, 230, 118, 0.7)", dash: "dash", width: 1.2 }
             });
         }
 
         const annotations = [];
 
+        // 常に最新レート（現在値）の水平破線を描画
+        shapes.push({
+            type: "line",
+            x0: times[0],
+            x1: lastTime,
+            y0: currentPrice,
+            y1: currentPrice,
+            yref: "y",
+            line: { color: "#ffd740", dash: "dot", width: 1.6 }
+        });
+
         if (activePosition) {
-            const fallbackPrice = closes[closes.length - 1] || 500;
-            const entryP = Number(activePosition.entryPrice) || fallbackPrice;
+            // ==========================================
+            // ポジション保有中: 決済タイミング完全可視化
+            // ==========================================
+            const entryP = Number(activePosition.entryPrice) || currentPrice;
             const tpP = Number(activePosition.takeProfitPrice) || (entryP * 1.06);
             const slP = Number(activePosition.stopLossPrice) || (entryP * 0.975);
             const posShares = Number(activePosition.shares) || 100;
-            const lastTime = times[times.length - 1];
+            const holdingBars = activePosition.holdingBars || 1;
+            const pnl = (currentPrice - entryP) * posShares;
+            const pnlPct = entryP > 0 ? ((currentPrice - entryP) / entryP) * 100 : 0;
+            const pnlColor = pnl >= 0 ? "#00e676" : "#ff5252";
+
+            // 利確・損切までの残り値幅とパーセント
+            const distTp = tpP - currentPrice;
+            const distTpPct = ((tpP - currentPrice) / currentPrice) * 100;
+            const distSl = currentPrice - slP;
+            const distSlPct = ((currentPrice - slP) / currentPrice) * 100;
 
             // 1. 利確ゾーン（買値〜利確目標の薄緑背景）
             shapes.push({
@@ -214,7 +250,7 @@ class TradingChart {
                 x0: times[0], x1: lastTime,
                 y0: entryP, y1: entryP,
                 yref: "y",
-                line: { color: "#00e5ff", dash: "solid", width: 2 }
+                line: { color: "#00e5ff", dash: "solid", width: 2.2 }
             });
 
             // 4. 利確ライン (鮮やかな緑色破線)
@@ -235,13 +271,13 @@ class TradingChart {
                 line: { color: "#ff5252", dash: "dash", width: 2.2 }
             });
 
-            // アノテーションラベル（右端に価格と目標を明示）
+            // 右端アノテーションラベル（価格・決済条件・残り距離）
             annotations.push({
                 x: lastTime, y: tpP, xref: "x", yref: "y",
-                text: `🎯 利確目標: ¥${tpP.toFixed(1)} (+6.0%)`,
+                text: `🎯 利確目標: ¥${tpP.toFixed(1)} (+6.0%)<br><span style="font-size:10px;">残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円 (${distTpPct >= 0 ? '+' : ''}${distTpPct.toFixed(1)}%)</span>`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#00e676",
-                ax: 60, ay: 0,
-                bgcolor: "#00e676", font: { color: "#0b0f19", size: 11 },
+                ax: 75, ay: 0,
+                bgcolor: "#00e676", font: { color: "#0b0f19", size: 10.5, weight: "bold" },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
@@ -249,39 +285,119 @@ class TradingChart {
                 x: lastTime, y: entryP, xref: "x", yref: "y",
                 text: `💼 買値: ¥${entryP.toLocaleString()} (${posShares}株)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#00e5ff",
-                ax: 60, ay: 0,
-                bgcolor: "#00e5ff", font: { color: "#0b0f19", size: 11 },
+                ax: 75, ay: (Math.abs(currentPrice - entryP) < 5 ? 20 : 0),
+                bgcolor: "#00e5ff", font: { color: "#0b0f19", size: 10.5, weight: "bold" },
+                bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
+            });
+
+            annotations.push({
+                x: lastTime, y: currentPrice, xref: "x", yref: "y",
+                text: `📍 現在値: ¥${currentPrice.toLocaleString()} (${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} / ${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`,
+                showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#ffd740",
+                ax: 75, ay: (currentPrice >= entryP ? -22 : 22),
+                bgcolor: "#ffd740", font: { color: "#0b0f19", size: 10.5, weight: "bold" },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
             annotations.push({
                 x: lastTime, y: slP, xref: "x", yref: "y",
-                text: `🛑 損切ライン: ¥${slP.toFixed(1)} (-2.5%)`,
+                text: `🛑 損切ライン: ¥${slP.toFixed(1)} (-2.5%)<br><span style="font-size:10px;">幅 -${distSl.toFixed(1)}円 (-${distSlPct.toFixed(1)}%)</span>`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#ff5252",
-                ax: 60, ay: 0,
-                bgcolor: "#ff5252", font: { color: "#ffffff", size: 11 },
+                ax: 75, ay: 0,
+                bgcolor: "#ff5252", font: { color: "#ffffff", size: 10.5, weight: "bold" },
                 bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
             });
 
-            // エントリー日時の足へのマーカー
+            // エントリー足のピンマーカー & 保有期限ガイド
+            let entryIndex = -1;
             if (activePosition.entryTime) {
-                const entryCandleTime = String(activePosition.entryTime).substring(0, 16);
+                const entryPrefix = String(activePosition.entryTime).substring(0, 16);
+                for (let i = times.length - 1; i >= 0; i--) {
+                    if (times[i].startsWith(entryPrefix) || times[i] <= entryPrefix) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (entryIndex >= 0) {
+                const entryTimeStr = times[entryIndex];
                 annotations.push({
-                    x: entryCandleTime, y: entryP, xref: "x", yref: "y",
-                    text: `◆ ENTRY 約定<br>¥${entryP.toLocaleString()}`,
+                    x: entryTimeStr, y: entryP, xref: "x", yref: "y",
+                    text: `◆ ENTRY 約定<br>¥${entryP.toLocaleString()}<br>${entryTimeStr}`,
                     showarrow: true, arrowhead: 3, arrowcolor: "#00e5ff",
-                    ax: 0, ay: -35,
-                    bgcolor: "rgba(0, 229, 255, 0.9)", font: { color: "#0b0f19", size: 10 },
+                    ax: 0, ay: -40,
+                    bgcolor: "rgba(0, 229, 255, 0.95)", font: { color: "#0b0f19", size: 10, weight: "bold" },
                     bordercolor: "#ffffff", borderwidth: 1, borderpad: 3
                 });
+
+                // 保有バー数リミット（最大15本＝3営業日）の縦ライン
+                const timeoutIndex = Math.min(times.length - 1, entryIndex + 14);
+                const timeoutTimeStr = times[timeoutIndex];
+                shapes.push({
+                    type: "line",
+                    x0: timeoutTimeStr, x1: timeoutTimeStr,
+                    y0: 0, y1: 1,
+                    yref: "paper",
+                    line: { color: "rgba(255, 215, 64, 0.8)", dash: "dashdot", width: 1.5 }
+                });
+
+                annotations.push({
+                    x: timeoutTimeStr, y: 0.98, xref: "x", yref: "paper",
+                    text: `⏰ 決済期限 (15本目・最大3日満了)<br>現在保有: ${holdingBars} / 15本 (残 ${Math.max(0, 15 - holdingBars)}本)`,
+                    showarrow: true, arrowhead: 2, arrowcolor: "#ffd740",
+                    ax: 0, ay: -25,
+                    bgcolor: "rgba(17, 24, 39, 0.9)", font: { color: "#ffd740", size: 10, weight: "bold" },
+                    bordercolor: "#ffd740", borderwidth: 1, borderpad: 3
+                });
             }
+
+        } else {
+            // ==========================================
+            // 未保有時: 現在レート & 想定決済ライン表示
+            // ==========================================
+            const simTp = currentPrice * 1.06;
+            const simSl = currentPrice * 0.975;
+
+            // 想定利確・損切の点線ガイド
+            shapes.push(
+                { type: "line", x0: times[0], x1: lastTime, y0: simTp, y1: simTp, yref: "y", line: { color: "rgba(0, 230, 118, 0.5)", dash: "dot", width: 1.2 } },
+                { type: "line", x0: times[0], x1: lastTime, y0: simSl, y1: simSl, yref: "y", line: { color: "rgba(255, 82, 82, 0.5)", dash: "dot", width: 1.2 } }
+            );
+
+            annotations.push({
+                x: lastTime, y: currentPrice, xref: "x", yref: "y",
+                text: `📍 現在値: ¥${currentPrice.toLocaleString()}<br><span style="font-size:10px;">前足比: ${changeSign}${priceChange.toFixed(1)} (${changeSign}${priceChangePct.toFixed(2)}%)</span>`,
+                showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#ffd740",
+                ax: 75, ay: 0,
+                bgcolor: "#ffd740", font: { color: "#0b0f19", size: 10.5, weight: "bold" },
+                bordercolor: "#ffffff", borderwidth: 1, borderpad: 4
+            });
+
+            annotations.push({
+                x: lastTime, y: simTp, xref: "x", yref: "y",
+                text: `🎯 想定利確: ¥${simTp.toFixed(1)} (+6.0%)`,
+                showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "rgba(0, 230, 118, 0.7)",
+                ax: 75, ay: 0,
+                bgcolor: "rgba(0, 230, 118, 0.85)", font: { color: "#0b0f19", size: 10 },
+                bordercolor: "#ffffff", borderwidth: 1, borderpad: 3
+            });
+
+            annotations.push({
+                x: lastTime, y: simSl, xref: "x", yref: "y",
+                text: `🛑 想定損切: ¥${simSl.toFixed(1)} (-2.5%)`,
+                showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "rgba(255, 82, 82, 0.7)",
+                ax: 75, ay: 0,
+                bgcolor: "rgba(255, 82, 82, 0.85)", font: { color: "#ffffff", size: 10 },
+                bordercolor: "#ffffff", borderwidth: 1, borderpad: 3
+            });
         }
 
         const layout = {
             template: "plotly_dark",
             paper_bgcolor: "#0b0f19",
             plot_bgcolor: "#111827",
-            margin: { l: 45, r: 120, t: 30, b: 35 },
+            margin: { l: 45, r: 160, t: 30, b: 35 },
             height: window.innerWidth < 768 ? 480 : 580,
             showlegend: window.innerWidth >= 768,
             legend: { orientation: "h", y: 1.05, x: 1, xanchor: "right" },
@@ -294,7 +410,8 @@ class TradingChart {
             yaxis: {
                 domain: [0.45, 1.0],
                 gridcolor: "#1f293d",
-                title: "株価 (円)"
+                title: "株価 (円)",
+                autorange: true
             },
             yaxis2: {
                 domain: [0.22, 0.40],
@@ -317,7 +434,8 @@ class TradingChart {
             scrollZoom: true
         };
 
-        Plotly.newPlot(this.containerId, traces, layout, config);
+        // Plotly.react を使用してチラつきなく即座に最新レート・インジケーターを再描画
+        Plotly.react(this.containerId, traces, layout, config);
     }
 
     /**
@@ -416,7 +534,7 @@ class TradingChart {
             scrollZoom: true
         };
 
-        Plotly.newPlot(this.containerId, traces, layout, config);
+        Plotly.react(this.containerId, traces, layout, config);
     }
 }
 

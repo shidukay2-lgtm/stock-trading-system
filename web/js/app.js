@@ -415,7 +415,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 5. 銘柄選択 & チャート・画面更新 ---
+    // --- 5. 銘柄選択 & チャート・画面更新 (最新レート即時反映) ---
     function selectSymbol(code) {
         currentSymbolCode = code;
 
@@ -439,8 +439,72 @@ document.addEventListener("DOMContentLoaded", async () => {
             chart.render(analyzed, sym.info, activePos, strategyRegistry.activeStrategyId);
         }
 
+        updateChartHUD(sym.info, latest, activePos, metrics);
         updateSignalBanner(sym.info, latest, activePos, metrics);
         updateFundamentalCard(sym.info, metrics);
+    }
+
+    // --- チャート直上 リアルタイムHUD (現在レート & 決済タイミング) ---
+    function updateChartHUD(info, latest, activePos, metrics) {
+        const hud = document.getElementById("chart-realtime-hud");
+        if (!hud) return;
+
+        const currentClose = Number(latest.close) || 500;
+        const prevClose = latest.open ? Number(latest.open) : currentClose;
+        const diff = currentClose - prevClose;
+        const diffPct = prevClose > 0 ? (diff / prevClose) * 100 : 0;
+        const diffColor = diff >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+        const diffSign = diff >= 0 ? "+" : "";
+
+        if (activePos) {
+            const entryPrice = Number(activePos.entryPrice) || currentClose;
+            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * 1.06);
+            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * 0.975);
+            const shares = Number(activePos.shares) || 100;
+            const pnl = (currentClose - entryPrice) * shares;
+            const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
+            const pnlColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+
+            const distTp = tpPrice - currentClose;
+            const distTpPct = ((tpPrice - currentClose) / currentClose) * 100;
+            const distSl = currentClose - slPrice;
+            const distSlPct = ((currentClose - slPrice) / currentClose) * 100;
+            const holdingBars = activePos.holdingBars || 1;
+            const remainBars = Math.max(0, 15 - holdingBars);
+
+            hud.innerHTML = `
+                <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
+                    📍 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
+                </span>
+                <span class="chip-badge" style="background: ${pnl >= 0 ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 82, 82, 0.15)'}; color: ${pnlColor}; border: 1px solid ${pnlColor}; font-weight: 700;">
+                    💼 損益: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
+                </span>
+                <span class="chip-badge" style="background: rgba(0, 230, 118, 0.12); color: var(--accent-green); border: 1px solid var(--accent-green);">
+                    🎯 利確目標 ¥${tpPrice.toFixed(1)} (残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円)
+                </span>
+                <span class="chip-badge" style="background: rgba(255, 82, 82, 0.12); color: var(--accent-red); border: 1px solid var(--accent-red);">
+                    🛑 損切 ¥${slPrice.toFixed(1)} (幅 -${distSl.toFixed(1)}円)
+                </span>
+                <span class="chip-badge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid #00e5ff;">
+                    ⏰ 決済期限: ${holdingBars}/15本 (残 ${remainBars}本)
+                </span>
+            `;
+        } else {
+            const simTp = currentClose * 1.06;
+            const simSl = currentClose * 0.975;
+
+            hud.innerHTML = `
+                <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
+                    📍 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円 / ${diffSign}${diffPct.toFixed(2)}%</span>)
+                </span>
+                <span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
+                    🎯 想定利確 (+6.0%): ¥${simTp.toFixed(1)}
+                </span>
+                <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
+                    🛑 想定損切 (-2.5%): ¥${simSl.toFixed(1)}
+                </span>
+            `;
+        }
     }
 
     // --- チャートタブ切替 ---
