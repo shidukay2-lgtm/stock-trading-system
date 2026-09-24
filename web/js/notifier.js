@@ -256,19 +256,51 @@ class NotificationManager {
     }
 
     /**
-     * 買いシグナル検知時のマルチチャネル一括配信
+     * 買いシグナル検知時のマルチチャネル一括配信 (戦略別動的情報対応)
      */
-    async notifyBuySignal(info, latest, orderCalc) {
+    async notifyBuySignal(info, latest, orderCalc, strategyMeta = null) {
         if (!this.settings || !this.settings.events || !this.settings.events.buySignal) return;
         if (!info || !latest) return;
 
-        const signalTime = latest.time || new Date().toISOString().replace("T", " ").substring(0, 16);
+        const getJst = window.getNowJSTString || function() {
+            const now = new Date();
+            const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+            return jst.toISOString().replace("T", " ").substring(0, 16);
+        };
+        const signalTime = latest.time || getJst();
+
+        // 戦略情報の設定
+        const isScalp = strategyMeta && (strategyMeta.id === "mtf_scalping" || (strategyMeta.name && strategyMeta.name.includes("Scalping")));
+        const isVWAP = strategyMeta && (strategyMeta.id === "orderbook_vwap" || (strategyMeta.name && strategyMeta.name.includes("OrderBook")));
+        
+        let stratDisplayName = "HighWin_TripleConfluence (スイング戦略)";
+        let tpPctStr = "+6.0%";
+        let slPctStr = "-2.5%";
+        let rrRatioStr = "2.40 : 1";
+        let holdingPeriodStr = "最大3営業日 (15バー)";
+
+        if (isScalp) {
+            stratDisplayName = strategyMeta.displayName || "【戦略3】MTF高速スキャル・デイトレ";
+            tpPctStr = "+1.2%";
+            slPctStr = "-0.6%";
+            rrRatioStr = "2.00 : 1";
+            holdingPeriodStr = "最大30〜60分 (10バー)";
+        } else if (isVWAP) {
+            stratDisplayName = strategyMeta.displayName || "【戦略2】板気配VWAP反発押し目";
+            tpPctStr = "+6.0%";
+            slPctStr = "-2.5%";
+            rrRatioStr = "2.40 : 1";
+            holdingPeriodStr = "最大3営業日 (15バー)";
+        } else if (strategyMeta && strategyMeta.displayName) {
+            stratDisplayName = strategyMeta.displayName;
+        }
+
         const title = `🔔 【買いシグナル点灯】${info.name} (${info.code}) [${signalTime}]`;
         const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
         const orderInvest = (orderCalc && orderCalc.investment) ? `¥${orderCalc.investment.toLocaleString()}` : "10万円以内";
-        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * 1.06).toFixed(1)}`;
-        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * 0.975).toFixed(1)}`;
-        const body = `点灯日時: ${signalTime} (1h足確定)\n推奨買値: ¥${latest.close.toLocaleString()} | 推奨株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (+6.0%) | 損切: ${slStr} (-2.5%) | RR比 2.4:1 | 最大3日保有`;
+        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.012 : 1.06)).toFixed(1)}`;
+        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.994 : 0.975)).toFixed(1)}`;
+        const body = `点灯日時: ${signalTime}\n採用戦略: ${stratDisplayName}\n推奨買値: ¥${latest.close.toLocaleString()} | 推奨株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr}) | RR比 ${rrRatioStr} | ${holdingPeriodStr}`;
 
         // 1. ブラウザ通知
         this.sendBrowserNotification(title, body, `buy-${info.code}`);
@@ -277,15 +309,17 @@ class NotificationManager {
         if (this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
             await this.sendDiscordNotification(
                 title,
-                `HighWin_TripleConfluence 戦略により、**${info.name} (${info.code})** にて強力な買いシグナルが点灯しました！\n⏰ **点灯日時: ${signalTime} (1h足確定)**`,
+                `**${stratDisplayName}** により、**${info.name} (${info.code})** にて強力な買いシグナルが点灯しました！\n⏰ **点灯日時: ${signalTime}**`,
                 [
-                    { name: "点灯日時", value: `${signalTime} (1h足確定)`, inline: true },
+                    { name: "採用戦略", value: stratDisplayName, inline: false },
+                    { name: "点灯日時", value: signalTime, inline: true },
                     { name: "市場 / セクター", value: `${info.market || '東証'} / ${info.sector || '成長小型'}`, inline: true },
                     { name: "推奨エントリー価格", value: `¥${latest.close.toLocaleString()}`, inline: true },
                     { name: "推奨株数 (100株単元)", value: `${orderNote} (${orderInvest})`, inline: true },
-                    { name: "利確ライン (+6.0%)", value: tpStr, inline: true },
-                    { name: "損切ライン (-2.5%)", value: slStr, inline: true },
-                    { name: "リスクリワード比", value: "2.40 : 1", inline: true }
+                    { name: `利確目標 (${tpPctStr})`, value: tpStr, inline: true },
+                    { name: `損切ライン (${slPctStr})`, value: slStr, inline: true },
+                    { name: "想定保有期間", value: holdingPeriodStr, inline: true },
+                    { name: "リスクリワード比", value: rrRatioStr, inline: true }
                 ],
                 0x00FF88
             );
@@ -320,7 +354,7 @@ class NotificationManager {
 
         let eventEmoji = isTP ? "🎯 【利食い達成】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限決済】");
         const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
-        const body = `決済日時: ${trade.exit_time || 'たった今'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
+        const body = `決済日時: ${trade.exit_time || 'たった今'}\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
 
         // 1. ブラウザ通知
         this.sendBrowserNotification(title, body, `exit-${trade.symbol}`);
@@ -329,13 +363,14 @@ class NotificationManager {
         if (this.settings.chat && this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
             await this.sendDiscordNotification(
                 title,
-                `保有ポジションが決済約定しました。\n**${name} (${trade.symbol})**`,
+                `保有ポジションが決済約定しました。\n**${name} (${trade.symbol})** [戦略: ${trade.strategy_name || 'HighWin'}]`,
                 [
+                    { name: "採用戦略", value: trade.strategy_name || 'HighWin Trade', inline: false },
                     { name: "決済種別", value: trade.exit_reason, inline: true },
                     { name: "実現損益額", value: `${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)`, inline: true },
                     { name: "買値 ➔ 決済値", value: `¥${Number(trade.entry_price).toLocaleString()} ➔ ¥${Number(trade.exit_price).toLocaleString()}`, inline: true },
                     { name: "保有株数", value: `${trade.shares}株`, inline: true },
-                    { name: "決済日時", value: `${trade.exit_time}`, inline: true }
+                    { name: "決済日時 (JST)", value: `${trade.exit_time}`, inline: true }
                 ],
                 isWin ? 0x00FF88 : 0xFF5252
             );

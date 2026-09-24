@@ -37,6 +37,21 @@ let isScreeningRunning = false;
 let lastScreeningTime = null;
 
 /**
+ * 日本時間 (JST: UTC+9) の現在日時文字列 (YYYY-MM-DD HH:mm) を生成
+ */
+function getNowJSTString(includeSeconds = false) {
+  const now = new Date();
+  const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const y = jstDate.getUTCFullYear();
+  const m = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(jstDate.getUTCDate()).padStart(2, '0');
+  const h = String(jstDate.getUTCHours()).padStart(2, '0');
+  const min = String(jstDate.getUTCMinutes()).padStart(2, '0');
+  const sec = String(jstDate.getUTCSeconds()).padStart(2, '0');
+  return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
+}
+
+/**
  * Python スクリーニングスクリプト (market_monitor.py) の安全な実行
  */
 function triggerMarketScreening(callback) {
@@ -278,7 +293,7 @@ const server = http.createServer((req, res) => {
             data.positions = [];
             data.trades = [];
             data.equityHistory = [{
-              time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              time: getNowJSTString(),
               equity: initCap,
               cash: initCap,
               positionsValue: 0,
@@ -350,7 +365,7 @@ const server = http.createServer((req, res) => {
 
           if (!data.equityHistory) data.equityHistory = [];
           data.equityHistory.push({
-            time: trade.exit_time || new Date().toISOString().replace('T', ' ').substring(0, 16),
+            time: trade.exit_time || getNowJSTString(),
             equity: currentTotalEquity,
             cash: data.account.cash,
             positionsValue: 0,

@@ -1,64 +1,23 @@
 {
   "account": {
     "initialCapital": 300000,
-    "cash": 46200,
+    "cash": 300000,
     "compoundingEnabled": true,
     "maxAllocationPct": 0.4,
-    "updatedAt": "2026-09-24T00:22:23.741Z"
+    "updatedAt": "2026-09-24 14:23:00"
   },
-  "positions": [
-    {
-      "symbol": "4477.T",
-      "symbolName": "BASE",
-      "entryTime": "2026-09-18 15:00",
-      "entryPrice": 338,
-      "shares": 300,
-      "investmentAmount": 101400,
-      "stopLossPrice": 329.55,
-      "takeProfitPrice": 358.28000000000003,
-      "strategyName": "HighWin_TripleConfluence",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 (300株 (100株単元・複利運用))"
-    },
-    {
-      "symbol": "5246.T",
-      "symbolName": "ELEMENTS",
-      "entryTime": "2026-09-24 09:00",
-      "entryPrice": 878,
-      "shares": 100,
-      "investmentAmount": 87800,
-      "stopLossPrice": 856.05,
-      "takeProfitPrice": 930.6800000000001,
-      "strategyName": "HighWin_TripleConfluence",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 [【戦略1】TripleConfluence (EMA×MACD×RSI同期)] (100株 (100株単元・複利運用))"
-    },
-    {
-      "symbol": "2158.T",
-      "symbolName": "FRONTEO",
-      "entryTime": "2026-09-24 09:00",
-      "entryPrice": 646,
-      "shares": 100,
-      "investmentAmount": 64600,
-      "stopLossPrice": 629.85,
-      "takeProfitPrice": 684.76,
-      "strategyName": "HighWin_TripleConfluence",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 [【戦略1】TripleConfluence (EMA×MACD×RSI同期)] (100株 (100株単元・複利運用))"
-    }
-  ],
+  "positions": [],
   "trades": [],
-  "notes": {},
   "equityHistory": [
     {
-      "time": "2026-09-21 09:42",
+      "time": "2026-09-24 14:23",
       "equity": 300000,
       "cash": 300000,
       "positionsValue": 0,
       "realizedPnl": 0,
       "unrealizedPnl": 0,
-      "returnPct": 0,
-      "note": "初期セットアップ (元本 ¥300,000 / 複利運用ON)"
+      "returnPct": 0.0,
+      "note": "初期元本設定"
     }
   ]
 }

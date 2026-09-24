@@ -53,10 +53,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・複利対応) ---
+    // 同一足または決済直後の無限再エントリーを防ぐクールダウン管理
+    const exitCooldownMap = {};
+
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・複利対応・誤損切防止) ---
     async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
         if (!dataStore.autoTradingEnabled) return;
+
+        const getJst = window.getNowJSTString || function() {
+            const now = new Date();
+            const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+            return jst.toISOString().replace("T", " ").substring(0, 16);
+        };
 
         // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了)
         const currentPositions = [...dataStore.positions];
@@ -85,14 +94,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             let exitReason = null;
             let exitNote = "";
 
-            // (1) 利確判定
-            if (currentHigh >= pos.takeProfitPrice || currentClose >= pos.takeProfitPrice) {
+            // --- 決済条件判定 (デイトレ・リアルタイム誤損切防止) ---
+            // (1) 利確判定 (目標価格到達)
+            if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
                 exitPrice = Math.max(pos.takeProfitPrice, currentClose);
                 exitReason = "TAKE_PROFIT";
                 exitNote = `🎯 自動利食い約定 (目標達成: ¥${exitPrice.toLocaleString()})`;
             }
             // (2) 損切判定
-            else if (currentLow <= pos.stopLossPrice || currentClose <= pos.stopLossPrice) {
+            // ※重要: エントリーした同一足 (barsCount <= 1) では過去安値(latest.low)を見ず、現在のリアルタイム価格(currentClose)のみで判定
+            // 次の足以降 (barsCount > 1) に進んで初めてその足の安値(currentLow)または現在値を参照
+            else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
                 exitPrice = Math.min(pos.stopLossPrice, currentClose);
                 exitReason = "STOP_LOSS";
                 exitNote = `🛑 自動損切り約定 (損切り到達: ¥${exitPrice.toLocaleString()})`;
@@ -106,6 +118,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (exitPrice !== null && exitReason !== null) {
                 console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 戦略: ${pos.strategyName}, 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
+                
+                // クールダウン登録（同一足での即時再エントリーを防止）
+                exitCooldownMap[pos.symbol] = {
+                    candleTime: latest.time,
+                    timestamp: Date.now(),
+                    exitReason: exitReason
+                };
+
                 const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason} #${pos.strategyName || 'HighWin'}`);
                 if (closedTrade) {
                     notifier.notifyTradeExit(closedTrade, pos.symbolName);
@@ -128,6 +148,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const activePos = dataStore.positions.find(p => p.symbol === code);
                 if (activePos) continue; // すでに保有中ならスキップ
 
+                // 勝率70%以上フィルターチェック
+                if (dataStore.filter70PlusOnly && !sym.info.is_win_rate_70_plus && (sym.info.max_win_rate < 70.0)) {
+                    continue; // 70%未満はスキップ
+                }
+
+                // クールダウンチェック (同一足または決済から5分以内は再エントリー禁止)
+                const lastCandle = sym.candles && sym.candles.length > 0 ? sym.candles[sym.candles.length - 1] : null;
+                const lastExit = exitCooldownMap[code];
+                if (lastExit && lastCandle) {
+                    const isSameCandle = lastExit.candleTime === lastCandle.time;
+                    const isWithin5Min = (Date.now() - lastExit.timestamp) < (5 * 60 * 1000);
+                    if (isSameCandle || isWithin5Min) {
+                        continue; // クールダウン中
+                    }
+                }
+
                 // 監視ONの戦略を順次チェック
                 for (const stratMeta of enabledStrategies) {
                     if (dataStore.positions.length >= maxConcurrentPositions) break;
@@ -140,10 +176,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const orderCalc = stratInstance.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
                         if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
                             const entryPrice = latest.close;
+                            const entryTimeStr = latest.time || getJst();
                             const pos = {
                                 symbol: sym.info.code,
                                 symbolName: sym.info.name,
-                                entryTime: latest.time || new Date().toISOString().replace("T", " ").substring(0, 16),
+                                entryTime: entryTimeStr,
                                 entryPrice: entryPrice,
                                 shares: orderCalc.shares,
                                 investmentAmount: orderCalc.investment,
@@ -157,7 +194,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                             console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
                             await dataStore.addPosition(pos);
-                            notifier.notifyBuySignal(sym.info, latest, orderCalc, pos.entryTime);
+                            notifier.notifyBuySignal(sym.info, latest, orderCalc, stratMeta);
                             break; // 1銘柄につき1エントリー
                         }
                     }
@@ -867,10 +904,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
+            const getJst = window.getNowJSTString || function() {
+                const now = new Date();
+                const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+                return jst.toISOString().replace("T", " ").substring(0, 16);
+            };
+
             const pos = {
                 symbol: info.code,
                 symbolName: info.name,
-                entryTime: signalTime || new Date().toISOString().replace("T", " ").substring(0, 16),
+                entryTime: signalTime || getJst(),
                 entryPrice: price,
                 shares: shares,
                 investmentAmount: investment,

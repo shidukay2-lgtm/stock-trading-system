@@ -4,6 +4,23 @@
  * 複利再投資運用・動的勝率・資産推移スナップショット管理
  */
 
+/**
+ * 日本時間 (JST: UTC+9) の現在日時文字列 (YYYY-MM-DD HH:mm) を生成する共通ヘルパー
+ */
+function getNowJSTString(includeSeconds = false) {
+    const now = new Date();
+    // JST = UTC+9
+    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+    const y = jstDate.getUTCFullYear();
+    const m = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(jstDate.getUTCDate()).padStart(2, '0');
+    const h = String(jstDate.getUTCHours()).padStart(2, '0');
+    const min = String(jstDate.getUTCMinutes()).padStart(2, '0');
+    const sec = String(jstDate.getUTCSeconds()).padStart(2, '0');
+    return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
+}
+window.getNowJSTString = getNowJSTString;
+
 class DataStore {
     constructor() {
         this.STORAGE_KEY_POSITIONS = "sts_active_positions_v1";
@@ -194,7 +211,7 @@ class DataStore {
 
     loadLocalEquityHistory() {
         return [{
-            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            time: getNowJSTString(),
             equity: this.initialCapital,
             cash: this.initialCapital,
             positionsValue: 0,
@@ -215,7 +232,7 @@ class DataStore {
             this.positions = [];
             this.trades = [];
             this.equityHistory = [{
-                time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+                time: getNowJSTString(),
                 equity: this.initialCapital,
                 cash: this.initialCapital,
                 positionsValue: 0,
@@ -286,7 +303,7 @@ class DataStore {
             symbol_name: pos.symbolName,
             strategy_name: pos.strategyName || "HighWin_TripleConfluence",
             entry_time: pos.entryTime,
-            exit_time: new Date().toISOString().replace("T", " ").substring(0, 16),
+            exit_time: getNowJSTString(),
             entry_price: pos.entryPrice,
             exit_price: exitPrice,
             shares: pos.shares,
