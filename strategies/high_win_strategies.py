@@ -312,3 +312,95 @@ class HighWinOrderBookVWAPPullbackStrategy(BaseStrategy):
             "max_holding_period": f"{self.params['max_holding_bars']} バー (約3営業日)"
         }
 
+
+# =====================================================================
+# 戦略案5: マルチタイムフレーム高速スキャル・デイトレ戦略 (HighWin_MTF_Scalping_Breakout)
+# =====================================================================
+class HighWinMTFScalpingStrategy(BaseStrategy):
+    """
+    【戦略3】マルチタイムフレーム高速スキャル・デイトレ戦略
+    
+    【設計思想】
+    1時間以内に数回のトレード（高速利確・微損撤退）を行える高回転戦略。
+    - 上位足（日足/1h足）: 大局上昇トレンド（EMA20 > EMA50 または VWAP上）を確認
+    - 下位足（5分足/1分足）: 短期VWAPタッチ押し目反発 ＋ 板気配インバランス（買い板1.3倍以上） ＋ 直近高値ブレイク
+    - 利確: +1.2%〜+1.5% (数分〜15分で素早く利食い)
+    - 損切: -0.6%〜-0.7% (サポート割れで即座に微損撤退、リスクリワード比 2.0:1)
+    - 最大保有: 6〜12バー (30分〜60分以内で強制決済)
+    """
+
+    def __init__(self, params: Dict[str, Any] = None):
+        default_params = {
+            "stop_loss_pct": 0.006,       # 損切り: -0.6% (タイトな損切り)
+            "take_profit_pct": 0.012,     # 利確: +1.2% (RR比 2.00:1)
+            "max_holding_bars": 10,       # 最大10バー (約30分〜60分以内)
+            "rsi_min": 45.0,
+            "rsi_max": 65.0,
+            "ema_fast": 9,
+            "ema_mid": 20,
+            "ema_slow": 50,
+            "imbalance_threshold": 1.30,  # 買い気配1.30倍以上
+            "breakout_lookback": 6        # 直近6バー高値ブレイク
+        }
+        if params:
+            default_params.update(params)
+        super().__init__(name="HighWin_MTF_Scalping_Breakout", params=default_params)
+        self.description = "【戦略3】上位足トレンド × 下位足短期VWAP反発・板気配急増 高速スキャル戦略"
+        self.rationale = (
+            "大局上昇トレンド中、下位足で短期VWAP支持線またはEMA9にタッチして反発し、"
+            "板の買い気配インバランスが1.3倍以上に急増した瞬間を捉えて素早くエントリー。"
+            "利確+1.2%/損切-0.6%のタイトな設計により、1時間以内に完結する高回転トレードを実現。"
+        )
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        p = self.params
+
+        # 短期VWAP計算
+        tp = (df["High"] + df["Low"] + df["Close"]) / 3.0
+        df["Cum_Vol"] = df["Volume"].cumsum()
+        df["Cum_TP_Vol"] = (tp * df["Volume"]).cumsum()
+        df["VWAP"] = (df["Cum_TP_Vol"] / df["Cum_Vol"].replace(0, np.nan)).ffill()
+
+        df["EMA9"] = self.calculate_ema(df["Close"], p["ema_fast"])
+        df["EMA20"] = self.calculate_ema(df["Close"], p["ema_mid"])
+        df["EMA50"] = self.calculate_ema(df["Close"], p["ema_slow"])
+        df["RSI"] = self.calculate_rsi(df["Close"], period=9) # 短期RSI
+        df["Recent_High"] = df["High"].rolling(window=p["breakout_lookback"]).max().shift(1)
+
+        # 板気配・出来高インバランス推計
+        range_hl = (df["High"] - df["Low"]).replace(0, 0.001)
+        df["Buying_Pressure"] = ((df["Close"] - df["Low"]) / range_hl) * df["Volume"]
+        df["Buying_Pressure_MA"] = df["Buying_Pressure"].rolling(6).mean()
+        df["Bid_Ask_Ratio_Est"] = df["Buying_Pressure"] / (df["Buying_Pressure_MA"].replace(0, 1))
+
+        df["signal"] = 0
+
+        # (1) 上位足・大局トレンド (EMA20 >= EMA50 または VWAP上)
+        cond_trend = (df["EMA20"] >= df["EMA50"] * 0.997) | (df["Close"] >= df["VWAP"])
+        # (2) 短期押し目反発 (EMA9またはVWAPタッチ反発) または 直近高値ブレイク
+        cond_pullback = (df["Low"] <= df["EMA9"] * 1.006) & (df["Close"] >= df["EMA9"] * 0.996)
+        cond_breakout = df["Close"] >= df["Recent_High"] * 0.999
+        cond_trigger = cond_pullback | cond_breakout
+        # (3) 陽線反発
+        cond_candle = (df["Close"] >= df["Open"]) | ((df["Close"] - df["Low"]) > (df["High"] - df["Close"]))
+        # (4) 板気配インバランス急増 (1.3倍以上)
+        cond_orderbook = df["Bid_Ask_Ratio_Est"] >= p["imbalance_threshold"]
+        # (5) 短期RSIモメンタム (45〜65)
+        cond_rsi = (df["RSI"] >= p["rsi_min"]) & (df["RSI"] <= p["rsi_max"])
+
+        df.loc[cond_trend & cond_trigger & cond_candle & cond_orderbook & cond_rsi, "signal"] = 1
+        return df
+
+    def get_strategy_info(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "rationale": self.rationale,
+            "parameters": self.params,
+            "risk_reward_target": f"1 : {self.params['take_profit_pct'] / self.params['stop_loss_pct']:.2f}",
+            "stop_loss": f"-{self.params['stop_loss_pct']*100:.1f}%",
+            "take_profit": f"+{self.params['take_profit_pct']*100:.1f}%",
+            "max_holding_period": f"{self.params['max_holding_bars']} バー (約30〜60分以内)"
+        }
+

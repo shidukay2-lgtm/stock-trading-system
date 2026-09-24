@@ -50,19 +50,35 @@
 
     <main class="container">
         
-        <!-- 🎯 トレード戦略セレクター (戦略1 / 戦略2 切替) -->
-        <section class="strategy-switch-bar" style="display: flex; align-items: center; justify-content: space-between; background: rgba(0, 229, 255, 0.04); border: 1px solid var(--border-glow); padding: 8px 16px; border-radius: var(--radius-sm); margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                <span style="font-weight: 700; font-size: 13px; color: var(--primary); display: flex; align-items: center; gap: 6px;">
-                    🎯 運用トレード戦略:
-                </span>
-                <select id="select-active-strategy" class="input-field" style="padding: 5px 12px; font-size: 13px; font-weight: 700; width: auto; background: #111827; border-color: var(--primary); color: #00e5ff; cursor: pointer;">
-                    <option value="triple_confluence" selected>【戦略1】TripleConfluence (EMA×MACD×RSI同期)</option>
-                    <option value="orderbook_vwap">【戦略2】板気配インバランス × VWAP反発押し目 (高勝率・板需給考慮)</option>
-                </select>
+        <!-- 🎯 トレード戦略管理 & 監視ON/OFFコントロールパネル -->
+        <section class="strategy-switch-bar" style="display: flex; flex-direction: column; gap: 10px; background: rgba(0, 229, 255, 0.04); border: 1px solid var(--border-glow); padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-weight: 700; font-size: 13px; color: var(--primary); display: flex; align-items: center; gap: 6px;">
+                        🎯 チャート表示戦略:
+                    </span>
+                    <select id="select-active-strategy" class="input-field" style="padding: 5px 12px; font-size: 13px; font-weight: 700; width: auto; background: #111827; border-color: var(--primary); color: #00e5ff; cursor: pointer;">
+                        <option value="mtf_scalping" selected>【戦略3】MTF高速スキャル・デイトレ (1時間以内完結・勝率70%+)</option>
+                        <option value="orderbook_vwap">【戦略2】板気配インバランス × VWAP反発押し目 (スイング)</option>
+                        <option value="triple_confluence">【戦略1】TripleConfluence (EMA×MACD×RSI同期 スイング)</option>
+                    </select>
+                </div>
+                <!-- 戦略個別 監視ON/OFFスイッチ群 -->
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;" id="strategy-watcher-toggles">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">👁️ 戦略監視設定:</span>
+                    <button class="btn btn-strategy-toggle active" id="btn-toggle-strat-mtf" data-strat="mtf_scalping" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; font-weight: 600; cursor: pointer; background: rgba(255, 215, 64, 0.15); border: 1px solid #ffd740; color: #ffd740;">
+                        戦略3 (高速デイトレ): ON
+                    </button>
+                    <button class="btn btn-strategy-toggle active" id="btn-toggle-strat-ob" data-strat="orderbook_vwap" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; font-weight: 600; cursor: pointer; background: rgba(179, 136, 255, 0.15); border: 1px solid #b388ff; color: #b388ff;">
+                        戦略2 (板気配VWAP): ON
+                    </button>
+                    <button class="btn btn-strategy-toggle active" id="btn-toggle-strat-tc" data-strat="triple_confluence" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; font-weight: 600; cursor: pointer; background: rgba(0, 229, 255, 0.15); border: 1px solid #00e5ff; color: #00e5ff;">
+                        戦略1 (スイング): ON
+                    </button>
+                </div>
             </div>
             <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;" id="active-strategy-desc">
-                💡 <span id="strategy-desc-text">EMA10/25ゴールデンクロス × MACD好転 × RSIモメンタム同期による高勝率スイング戦略</span>
+                💡 <span id="strategy-desc-text">上位足トレンド × 下位足短期VWAP反発・直近高値ブレイクによる1時間以内高回転デイトレ戦略 (利確+1.2% / 損切-0.6% / 最大30〜60分)</span>
             </div>
         </section>
 
@@ -110,9 +126,15 @@
             </div>
         </section>
 
-        <!-- 銘柄セレクター (10万円以下成長小型株) -->
+        <!-- 銘柄セレクター (10万円以下成長小型株 & 勝率70%フィルター) -->
         <section class="symbols-carousel-wrap">
-            <div class="section-label">⚡ 監視銘柄セレクター (10万円以内 成長小型株)</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                <div class="section-label" style="margin: 0;">⚡ 監視銘柄セレクター (10万円以内 成長小型株)</div>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--accent-green); cursor: pointer; background: rgba(0, 230, 118, 0.1); border: 1px solid var(--accent-green); padding: 4px 10px; border-radius: var(--radius-sm);">
+                    <input type="checkbox" id="check-filter-70-plus" style="cursor: pointer; accent-color: var(--accent-green);">
+                    <span>🛡️ 勝率70%以上のみ監視 (70%+ Filter)</span>
+                </label>
+            </div>
             <div class="symbols-list" id="symbols-list">
                 <!-- JSで動的生成 -->
             </div>

@@ -30,7 +30,8 @@ class TradingChart {
         const priceChangePct = prevPrice > 0 ? (priceChange / prevPrice) * 100 : 0;
         const changeSign = priceChange >= 0 ? "+" : "";
 
-        const isStrategy2 = (strategyId === "orderbook_vwap") || Boolean(analyzedCandles[0] && analyzedCandles[0].vwap !== undefined);
+        const isStrategy3 = (strategyId === "mtf_scalping") || Boolean(analyzedCandles[0] && analyzedCandles[0].recentHigh !== undefined);
+        const isStrategy2 = !isStrategy3 && ((strategyId === "orderbook_vwap") || Boolean(analyzedCandles[0] && analyzedCandles[0].vwap !== undefined));
 
         // 買いシグナルポイント抽出
         const buySignals = analyzedCandles.filter(c => c.isBuySignal);
@@ -38,7 +39,7 @@ class TradingChart {
         const buyPrices = buySignals.map(c => c.close);
 
         const traces = [
-            // (1) 1時間足 ローソク足
+            // (1) ローソク足
             {
                 type: "candlestick",
                 x: times,
@@ -54,7 +55,68 @@ class TradingChart {
             }
         ];
 
-        if (isStrategy2) {
+        if (isStrategy3) {
+            // 戦略3 (MTF高速スキャル): 短期VWAP + EMA9 + EMA20 + 直近高値ライン + 板気配
+            const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
+            const ema9 = analyzedCandles.map(c => c.ema9 !== undefined ? c.ema9 : c.close);
+            const ema20 = analyzedCandles.map(c => c.ema20 !== undefined ? c.ema20 : c.close);
+            const recentHigh = analyzedCandles.map(c => c.recentHigh !== undefined ? c.recentHigh : c.high);
+            const bidAskRatio = analyzedCandles.map(c => c.bidAskRatio !== undefined ? c.bidAskRatio : (c.bid_ask_imbalance || 1.0));
+
+            traces.push(
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: vwap,
+                    name: "短期 VWAP",
+                    line: { color: "#ffd740", width: 2.2, dash: "solid" },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema9,
+                    name: "EMA 9 (超短期)",
+                    line: { color: "#00e5ff", width: 1.8 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: ema20,
+                    name: "EMA 20",
+                    line: { color: "#b388ff", width: 1.6 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
+                    y: recentHigh,
+                    name: "直近高値 (Breakout)",
+                    line: { color: "rgba(0, 230, 118, 0.7)", width: 1.4, dash: "dot" },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "bar",
+                    x: times,
+                    y: bidAskRatio,
+                    name: "板気配比率 (Bid/Ask)",
+                    marker: {
+                        color: bidAskRatio.map(r => (r >= 1.30 ? "#ffd740" : (r >= 1.15 ? "#00e676" : "#4a5568")))
+                    },
+                    xaxis: "x",
+                    yaxis: "y2"
+                }
+            );
+        } else if (isStrategy2) {
             // 戦略2: VWAP + EMA20 + EMA50 + 板気配インバランス
             const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
             const ema20 = analyzedCandles.map(c => c.ema20 !== undefined ? c.ema20 : c.close);
@@ -174,17 +236,23 @@ class TradingChart {
         });
 
         // サブプロットラベル設定
-        const y2Title = isStrategy2 ? "板気配比率" : "MACD";
+        const y2Title = isStrategy3 ? "板気配比率 (高速)" : (isStrategy2 ? "板気配比率" : "MACD");
 
         // シェイプとアノテーションの構築
         const shapes = [
             // RSI 水平基準ライン
             { type: "line", x0: times[0], x1: lastTime, y0: 70, y1: 70, yref: "y3", line: { color: "rgba(255, 82, 82, 0.4)", dash: "dot", width: 1 } },
-            { type: "line", x0: times[0], x1: lastTime, y0: isStrategy2 ? 50 : 48, y1: isStrategy2 ? 50 : 48, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
+            { type: "line", x0: times[0], x1: lastTime, y0: isStrategy3 ? 55 : (isStrategy2 ? 50 : 48), y1: isStrategy3 ? 55 : (isStrategy2 ? 50 : 48), yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
             { type: "line", x0: times[0], x1: lastTime, y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } }
         ];
 
-        if (isStrategy2) {
+        if (isStrategy3) {
+            // 板気配比率 1.30 基準ライン
+            shapes.push({
+                type: "line", x0: times[0], x1: lastTime, y0: 1.30, y1: 1.30, yref: "y2",
+                line: { color: "#ffd740", dash: "dash", width: 1.2 }
+            });
+        } else if (isStrategy2) {
             // 板気配比率 1.25 基準ライン
             shapes.push({
                 type: "line", x0: times[0], x1: lastTime, y0: 1.25, y1: 1.25, yref: "y2",
@@ -210,10 +278,11 @@ class TradingChart {
             // ポジション保有中: 決済タイミング完全可視化
             // ==========================================
             const entryP = Number(activePosition.entryPrice) || currentPrice;
-            const tpP = Number(activePosition.takeProfitPrice) || (entryP * 1.06);
-            const slP = Number(activePosition.stopLossPrice) || (entryP * 0.975);
+            const tpP = Number(activePosition.takeProfitPrice) || (entryP * (isStrategy3 ? 1.012 : 1.06));
+            const slP = Number(activePosition.stopLossPrice) || (entryP * (isStrategy3 ? 0.994 : 0.975));
             const posShares = Number(activePosition.shares) || 100;
             const holdingBars = activePosition.holdingBars || 1;
+            const maxBars = isStrategy3 ? 10 : 15;
             const pnl = (currentPrice - entryP) * posShares;
             const pnlPct = entryP > 0 ? ((currentPrice - entryP) / entryP) * 100 : 0;
             const pnlColor = pnl >= 0 ? "#00e676" : "#ff5252";
@@ -271,10 +340,13 @@ class TradingChart {
                 line: { color: "#ff5252", dash: "dash", width: 2.2 }
             });
 
+            const tpPctStr = isStrategy3 ? "+1.2%" : "+6.0%";
+            const slPctStr = isStrategy3 ? "-0.6%" : "-2.5%";
+
             // 右端アノテーションラベル（価格・決済条件・残り距離）
             annotations.push({
                 x: lastTime, y: tpP, xref: "x", yref: "y",
-                text: `🎯 利確目標: ¥${tpP.toFixed(1)} (+6.0%)<br><span style="font-size:10px;">残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円 (${distTpPct >= 0 ? '+' : ''}${distTpPct.toFixed(1)}%)</span>`,
+                text: `🎯 利確目標: ¥${tpP.toFixed(1)} (${tpPctStr})<br><span style="font-size:10px;">残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円 (${distTpPct >= 0 ? '+' : ''}${distTpPct.toFixed(1)}%)</span>`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#00e676",
                 ax: 75, ay: 0,
                 bgcolor: "#00e676", font: { color: "#0b0f19", size: 10.5, weight: "bold" },
@@ -301,7 +373,7 @@ class TradingChart {
 
             annotations.push({
                 x: lastTime, y: slP, xref: "x", yref: "y",
-                text: `🛑 損切ライン: ¥${slP.toFixed(1)} (-2.5%)<br><span style="font-size:10px;">幅 -${distSl.toFixed(1)}円 (-${distSlPct.toFixed(1)}%)</span>`,
+                text: `🛑 損切ライン: ¥${slP.toFixed(1)} (${slPctStr})<br><span style="font-size:10px;">幅 -${distSl.toFixed(1)}円 (-${distSlPct.toFixed(1)}%)</span>`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "#ff5252",
                 ax: 75, ay: 0,
                 bgcolor: "#ff5252", font: { color: "#ffffff", size: 10.5, weight: "bold" },
@@ -331,8 +403,8 @@ class TradingChart {
                     bordercolor: "#ffffff", borderwidth: 1, borderpad: 3
                 });
 
-                // 保有バー数リミット（最大15本＝3営業日）の縦ライン
-                const timeoutIndex = Math.min(times.length - 1, entryIndex + 14);
+                // 保有バー数リミットの縦ライン
+                const timeoutIndex = Math.min(times.length - 1, entryIndex + maxBars - 1);
                 const timeoutTimeStr = times[timeoutIndex];
                 shapes.push({
                     type: "line",
@@ -344,7 +416,7 @@ class TradingChart {
 
                 annotations.push({
                     x: timeoutTimeStr, y: 0.98, xref: "x", yref: "paper",
-                    text: `⏰ 決済期限 (15本目・最大3日満了)<br>現在保有: ${holdingBars} / 15本 (残 ${Math.max(0, 15 - holdingBars)}本)`,
+                    text: `⏰ 決済期限 (${maxBars}本満了)<br>現在保有: ${holdingBars} / ${maxBars}本 (残 ${Math.max(0, maxBars - holdingBars)}本)`,
                     showarrow: true, arrowhead: 2, arrowcolor: "#ffd740",
                     ax: 0, ay: -25,
                     bgcolor: "rgba(17, 24, 39, 0.9)", font: { color: "#ffd740", size: 10, weight: "bold" },
@@ -356,8 +428,10 @@ class TradingChart {
             // ==========================================
             // 未保有時: 現在レート & 想定決済ライン表示
             // ==========================================
-            const simTp = currentPrice * 1.06;
-            const simSl = currentPrice * 0.975;
+            const simTpPct = isStrategy3 ? 0.012 : 0.060;
+            const simSlPct = isStrategy3 ? 0.006 : 0.025;
+            const simTp = currentPrice * (1 + simTpPct);
+            const simSl = currentPrice * (1 - simSlPct);
 
             // 想定利確・損切の点線ガイド
             shapes.push(
@@ -376,7 +450,7 @@ class TradingChart {
 
             annotations.push({
                 x: lastTime, y: simTp, xref: "x", yref: "y",
-                text: `🎯 想定利確: ¥${simTp.toFixed(1)} (+6.0%)`,
+                text: `🎯 想定利確: ¥${simTp.toFixed(1)} (+${(simTpPct * 100).toFixed(1)}%)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "rgba(0, 230, 118, 0.7)",
                 ax: 75, ay: 0,
                 bgcolor: "rgba(0, 230, 118, 0.85)", font: { color: "#0b0f19", size: 10 },
@@ -385,7 +459,7 @@ class TradingChart {
 
             annotations.push({
                 x: lastTime, y: simSl, xref: "x", yref: "y",
-                text: `🛑 想定損切: ¥${simSl.toFixed(1)} (-2.5%)`,
+                text: `🛑 想定損切: ¥${simSl.toFixed(1)} (-${(simSlPct * 100).toFixed(1)}%)`,
                 showarrow: true, arrowhead: 2, arrowsize: 1, arrowcolor: "rgba(255, 82, 82, 0.7)",
                 ax: 75, ay: 0,
                 bgcolor: "rgba(255, 82, 82, 0.85)", font: { color: "#ffffff", size: 10 },

@@ -6,6 +6,7 @@ from strategies.high_win_strategies import (
     HighWinTrendPullbackStrategy,
     HighWinVolumeBreakoutStrategy,
     HighWinTripleConfluenceStrategy,
-    HighWinOrderBookVWAPPullbackStrategy
+    HighWinOrderBookVWAPPullbackStrategy,
+    HighWinMTFScalpingStrategy
 )
 from strategies.strategy_comparator import StrategyComparator

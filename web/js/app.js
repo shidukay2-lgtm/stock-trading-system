@@ -1,12 +1,12 @@
 /**
  * メインアプリケーションロジック (web/js/app.js)
  * - リアルタイム相場監視 & オートスクリーニング（30秒自動ポーリング / 手動即時更新）
- * - 複数トレード戦略切替対応 (StrategyRegistry)
- *   1) 【戦略1】TripleConfluence (EMA×MACD×RSI同期)
- *   2) 【戦略2】板気配インバランス × VWAP反発押し目 (OrderBook_VWAP_Pullback)
- * - 東証取引時間帯（開場/閉場）自動ステータス判定
- * - 勝率上位・100株単元<=10万円の動的トップ5〜10銘柄リバランス
- * - シグナル点灯日時の明示 & マルチチャネル自動通知
+ * - 複数トレード戦略切替 & 個別監視ON/OFF対応 (StrategyRegistry & Toggles)
+ *   1) 【戦略1】TripleConfluence (EMA×MACD×RSI同期 スイング)
+ *   2) 【戦略2】板気配インバランス × VWAP反発押し目 (板需給考慮スイング)
+ *   3) 【戦略3】MTF高速スキャル・デイトレ (1時間以内完結・勝率70%+)
+ * - 勝率70%以上バックテスト通過銘柄の厳選監視フィルター
+ * - ポジション・履歴・シグナル・チャートでのエントリー戦略完全可視化
  * - サーバーDB永続化 & 動的勝率集計 & 複利運用・資産推移グラフ可視化
  */
 
@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const strategyRegistry = new StrategyRegistry();
     const notifier = new NotificationManager();
     const chart = new TradingChart("main-chart-container");
+
+    // 保存済みの戦略監視ON/OFF設定をロード
+    strategyRegistry.loadStrategyToggles(dataStore.strategyToggles);
 
     let symbolsData = null;
     let currentSymbolCode = "4477.T"; // 初期選択
@@ -28,19 +31,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     function getSymbolMetricsForActiveStrategy(sym) {
         if (!sym) return { win_rate_pct: 68.5, latest_signal_time: "-" };
         const stratId = strategyRegistry.activeStrategyId;
-        if (stratId === "orderbook_vwap" && sym.metrics_strat2) {
+        if (stratId === "mtf_scalping" && sym.metrics_strat3) {
+            return sym.metrics_strat3;
+        } else if (stratId === "orderbook_vwap" && sym.metrics_strat2) {
             return sym.metrics_strat2;
         }
         return sym.metrics_strat1 || sym.metrics || { win_rate_pct: 68.5, latest_signal_time: "-" };
     }
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader・複利再投資対応) ---
+    /**
+     * 戦略名に応じたカラーバッジHTMLを生成
+     */
+    function getStrategyBadgeHtml(strategyName) {
+        if (!strategyName) return `<span class="chip-badge" style="background:rgba(0,229,255,0.15); color:#00e5ff;">HighWin</span>`;
+        if (strategyName.includes("Scalping") || strategyName.includes("MTF") || strategyName === "mtf_scalping") {
+            return `<span class="chip-badge" style="background:rgba(255,215,64,0.2); color:#ffd740; border:1px solid #ffd740;">⚡ 戦略3 (高速デイトレ)</span>`;
+        } else if (strategyName.includes("OrderBook") || strategyName === "orderbook_vwap") {
+            return `<span class="chip-badge" style="background:rgba(179,136,255,0.2); color:#b388ff; border:1px solid #b388ff;">📊 戦略2 (板気配VWAP)</span>`;
+        } else {
+            return `<span class="chip-badge" style="background:rgba(0,229,255,0.2); color:#00e5ff; border:1px solid #00e5ff;">📈 戦略1 (スイング)</span>`;
+        }
+    }
+
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・複利対応) ---
     async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
         if (!dataStore.autoTradingEnabled) return;
-
-        const activeStrategy = strategyRegistry.getActiveStrategy();
-        const activeMeta = strategyRegistry.getActiveStrategyMeta();
 
         // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了)
         const currentPositions = [...dataStore.positions];
@@ -62,42 +78,49 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
             pos.holdingBars = Math.max(1, barsCount);
 
+            const isScalpPos = (pos.strategyName && pos.strategyName.includes("Scalping"));
+            const maxHoldingBars = isScalpPos ? 10 : 15;
+
             let exitPrice = null;
             let exitReason = null;
             let exitNote = "";
 
-            // (1) 利確判定 (+6.0%以上)
+            // (1) 利確判定
             if (currentHigh >= pos.takeProfitPrice || currentClose >= pos.takeProfitPrice) {
                 exitPrice = Math.max(pos.takeProfitPrice, currentClose);
                 exitReason = "TAKE_PROFIT";
-                exitNote = `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
+                exitNote = `🎯 自動利食い約定 (目標達成: ¥${exitPrice.toLocaleString()})`;
             }
-            // (2) 損切判定 (-2.5%以下)
+            // (2) 損切判定
             else if (currentLow <= pos.stopLossPrice || currentClose <= pos.stopLossPrice) {
                 exitPrice = Math.min(pos.stopLossPrice, currentClose);
                 exitReason = "STOP_LOSS";
-                exitNote = `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
+                exitNote = `🛑 自動損切り約定 (損切り到達: ¥${exitPrice.toLocaleString()})`;
             }
-            // (3) 保有期限満了 (15バー / 3営業日)
-            else if (pos.holdingBars >= 15) {
+            // (3) 保有期限満了 (戦略3なら10本/約30〜60分、他は15本/3営業日)
+            else if (pos.holdingBars >= maxHoldingBars) {
                 exitPrice = currentClose;
                 exitReason = "TIMEOUT";
-                exitNote = `⌛ 保有期限満了決済 (3営業日/15バー経過: ¥${exitPrice.toLocaleString()})`;
+                exitNote = `⌛ 保有期限満了決済 (${maxHoldingBars}バー経過: ¥${exitPrice.toLocaleString()})`;
             }
 
             if (exitPrice !== null && exitReason !== null) {
-                console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
-                const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason}`);
+                console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 戦略: ${pos.strategyName}, 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
+                const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason} #${pos.strategyName || 'HighWin'}`);
                 if (closedTrade) {
                     notifier.notifyTradeExit(closedTrade, pos.symbolName);
                 }
             }
         }
 
-        // 2. 新規買いシグナルの自動エントリーチェック (複利資金プール連動)
+        // 2. 新規買いシグナルの自動エントリーチェック (監視ONになっている戦略のみを巡回)
+        const enabledStrategies = strategyRegistry.getEnabledStrategies();
+        if (enabledStrategies.length === 0) return; // 全てOFFなら新規エントリー停止
+
         const maxConcurrentPositions = 3; // 同時保有上限 (最大3銘柄分散)
         if (dataStore.positions.length < maxConcurrentPositions) {
             const symKeys = Object.keys(symbolsData.symbols);
+
             for (const code of symKeys) {
                 if (dataStore.positions.length >= maxConcurrentPositions) break;
 
@@ -105,31 +128,38 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const activePos = dataStore.positions.find(p => p.symbol === code);
                 if (activePos) continue; // すでに保有中ならスキップ
 
-                const analyzed = activeStrategy.analyzeCandles(sym.candles);
-                const latest = analyzed[analyzed.length - 1];
+                // 監視ONの戦略を順次チェック
+                for (const stratMeta of enabledStrategies) {
+                    if (dataStore.positions.length >= maxConcurrentPositions) break;
 
-                if (latest && latest.isBuySignal) {
-                    // 複利設定に基づき注文サイズを自動計算 (100株単元厳守)
-                    const orderCalc = activeStrategy.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
-                    if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
-                        const entryPrice = latest.close;
-                        const pos = {
-                            symbol: sym.info.code,
-                            symbolName: sym.info.name,
-                            entryTime: latest.time || new Date().toISOString().replace("T", " ").substring(0, 16),
-                            entryPrice: entryPrice,
-                            shares: orderCalc.shares,
-                            investmentAmount: orderCalc.investment,
-                            stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (activeStrategy.params.stopLossPct || 0.025))),
-                            takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (activeStrategy.params.takeProfitPct || 0.060))),
-                            strategyName: activeMeta.name,
-                            holdingBars: 1,
-                            notes: `🤖 リアルタイム自動売買エントリー約定 [${activeMeta.displayName}] (${orderCalc.note})`
-                        };
+                    const stratInstance = stratMeta.instance;
+                    const analyzed = stratInstance.analyzeCandles(sym.candles);
+                    const latest = analyzed[analyzed.length - 1];
 
-                        console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 戦略: ${activeMeta.name}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
-                        await dataStore.addPosition(pos);
-                        notifier.notifyBuySignal(sym.info, latest, orderCalc, pos.entryTime);
+                    if (latest && latest.isBuySignal) {
+                        const orderCalc = stratInstance.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
+                        if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
+                            const entryPrice = latest.close;
+                            const pos = {
+                                symbol: sym.info.code,
+                                symbolName: sym.info.name,
+                                entryTime: latest.time || new Date().toISOString().replace("T", " ").substring(0, 16),
+                                entryPrice: entryPrice,
+                                shares: orderCalc.shares,
+                                investmentAmount: orderCalc.investment,
+                                stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.025))),
+                                takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.060))),
+                                strategyName: stratMeta.name,
+                                strategyDisplayName: stratMeta.displayName,
+                                holdingBars: 1,
+                                notes: `🤖 リアルタイム自動売買エントリー約定 [${stratMeta.shortName || stratMeta.name}] (${orderCalc.note})`
+                            };
+
+                            console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
+                            await dataStore.addPosition(pos);
+                            notifier.notifyBuySignal(sym.info, latest, orderCalc, pos.entryTime);
+                            break; // 1銘柄につき1エントリー
+                        }
                     }
                 }
             }
@@ -155,20 +185,70 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 運用戦略セレクターの初期化 ---
-    function initStrategySelector() {
+    // --- 運用戦略セレクター & 個別監視ON/OFFトグルの初期化 ---
+    function initStrategyControls() {
         const selectEl = document.getElementById("select-active-strategy");
         const descEl = document.getElementById("strategy-desc-text");
-        if (!selectEl) return;
 
-        selectEl.addEventListener("change", (e) => {
-            const stratId = e.target.value;
-            strategyRegistry.setActiveStrategy(stratId);
-            const meta = strategyRegistry.getActiveStrategyMeta();
-            if (descEl) descEl.innerText = meta.description;
-            console.log(`[Strategy] 運用戦略切り替え: ${meta.displayName} (${stratId})`);
-            renderAllUI();
+        if (selectEl) {
+            selectEl.value = strategyRegistry.activeStrategyId;
+            selectEl.addEventListener("change", (e) => {
+                const stratId = e.target.value;
+                strategyRegistry.setActiveStrategy(stratId);
+                const meta = strategyRegistry.getActiveStrategyMeta();
+                if (descEl) descEl.innerText = meta.description;
+                console.log(`[Strategy] チャート表示戦略切替: ${meta.displayName} (${stratId})`);
+                renderAllUI();
+            });
+        }
+
+        // 戦略個別監視ON/OFFボタン
+        const toggleButtons = [
+            { btnId: "btn-toggle-strat-mtf", stratId: "mtf_scalping", name: "戦略3 (高速デイトレ)", color: "#ffd740" },
+            { btnId: "btn-toggle-strat-ob", stratId: "orderbook_vwap", name: "戦略2 (板気配VWAP)", color: "#b388ff" },
+            { btnId: "btn-toggle-strat-tc", stratId: "triple_confluence", name: "戦略1 (スイング)", color: "#00e5ff" }
+        ];
+
+        toggleButtons.forEach(item => {
+            const btn = document.getElementById(item.btnId);
+            if (!btn) return;
+
+            const updateBtnUI = () => {
+                const isEnabled = strategyRegistry.isStrategyEnabled(item.stratId);
+                if (isEnabled) {
+                    btn.style.background = `rgba(255, 255, 255, 0.08)`;
+                    btn.style.borderColor = item.color;
+                    btn.style.color = item.color;
+                    btn.innerText = `👁️ ${item.name}: ON`;
+                } else {
+                    btn.style.background = "rgba(255, 255, 255, 0.02)";
+                    btn.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                    btn.style.color = "var(--text-dim)";
+                    btn.innerText = `⏸️ ${item.name}: OFF`;
+                }
+            };
+
+            updateBtnUI();
+
+            btn.addEventListener("click", () => {
+                const nextState = !strategyRegistry.isStrategyEnabled(item.stratId);
+                strategyRegistry.setStrategyEnabled(item.stratId, nextState);
+                dataStore.saveStrategyToggles(strategyRegistry.getStrategyToggles());
+                updateBtnUI();
+                console.log(`[Strategy Toggle] ${item.name} 監視設定変更: ${nextState ? 'ON' : 'OFF'}`);
+                renderAllUI();
+            });
         });
+
+        // 勝率70%以上フィルターのチェックボックス
+        const check70 = document.getElementById("check-filter-70-plus");
+        if (check70) {
+            check70.checked = Boolean(dataStore.filter70PlusOnly);
+            check70.addEventListener("change", (e) => {
+                dataStore.saveFilter70PlusOnly(e.target.checked);
+                renderSymbolSelector();
+            });
+        }
     }
 
     function renderAllUI() {
@@ -268,7 +348,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 3. 銘柄セレクター描画 (動的トップ5〜10銘柄 & 単元株 & 点灯日時) ---
+    // --- 3. 銘柄セレクター描画 (勝率70%以上フィルター連動 & 単元株 & 点灯日時) ---
     function renderSymbolSelector() {
         const container = document.getElementById("symbols-list");
         if (!container) return;
@@ -276,14 +356,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const symKeys = Object.keys(symbolsData.symbols);
+        const filter70Only = dataStore.filter70PlusOnly;
+
+        let displayedCount = 0;
 
         symKeys.forEach(code => {
             const sym = symbolsData.symbols[code];
             if (!sym || !sym.info) return;
             const info = sym.info;
             const metrics = getSymbolMetricsForActiveStrategy(sym);
+
+            // 勝率70%以上フィルターが有効な場合、70%未満は除外
+            const maxWinRate = info.max_win_rate || metrics.win_rate_pct || 65.0;
+            const is70Plus = info.is_win_rate_70_plus || (maxWinRate >= 70.0);
+            if (filter70Only && !is70Plus) {
+                return;
+            }
+
+            displayedCount++;
             
-            const analyzed = (sym.candles && sym.candles.length >= 30) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
+            const analyzed = (sym.candles && sym.candles.length >= 20) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
             const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : { close: info.current_price_approx || 500, isBuySignal: false };
             const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === code) : null;
             const isBuyActive = latest ? Boolean(latest.isBuySignal) : false;
@@ -321,6 +413,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const tpStr = activePos.takeProfitPrice ? Number(activePos.takeProfitPrice).toFixed(1) : (entryPrice * 1.06).toFixed(1);
                 const slStr = activePos.stopLossPrice ? Number(activePos.stopLossPrice).toFixed(1) : (entryPrice * 0.975).toFixed(1);
                 const entryTimeStr = String(activePos.entryTime || '-');
+                const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
                 statusBadgeHtml = `<span class="badge-status badge-holding" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid #00e5ff;">💼 保有中</span>`;
                 detailsHtml = `
@@ -331,8 +424,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <span>🎯 利確: ¥${tpStr}</span>
                         <span style="color:var(--accent-red)">🛑 損切: ¥${slStr}</span>
                     </div>
-                    <div style="font-size: 11px; color: #00e5ff; margin-top: 2px;">
-                        ⏰ エントリー: ${entryTimeStr} (保有 ${activePos.holdingBars || 1}/15本)
+                    <div style="font-size: 11px; color: #00e5ff; margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>⏰ ${entryTimeStr} (保有 ${activePos.holdingBars || 1}本)</span>
+                        ${stratBadge}
                     </div>
                 `;
             } else if (isBuyActive) {
@@ -342,7 +436,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         現在値 ¥${currentPrice.toLocaleString()} | ${orderCalc.note}
                     </div>
                     <div style="font-size: 11px; color: var(--primary); margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                        ⏰ 点灯日時: ${lastSignalTimeStr} (自動約定対象)
+                        ⏰ 点灯: ${lastSignalTimeStr} (約定対象)
                     </div>
                 `;
             } else {
@@ -357,13 +451,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                 `;
             }
 
+            const winRateBadge = is70Plus
+                ? `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.25); color: #00e676; border: 1px solid #00e676; font-weight: 700;">🛡️ 勝率 ${metrics.win_rate_pct}% (70%+)</span>`
+                : `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green);">勝率 ${metrics.win_rate_pct}%</span>`;
+
             chip.innerHTML = `
                 <div class="chip-header">
                     <span class="chip-code">${info.code}</span>
-                    <div style="display: flex; gap: 4px; align-items: center;">
-                        <span class="chip-badge" style="background: rgba(0, 230, 118, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green);">
-                            勝率 ${metrics.win_rate_pct}%
-                        </span>
+                    <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                        ${winRateBadge}
                         ${statusBadgeHtml}
                     </div>
                 </div>
@@ -374,44 +470,56 @@ document.addEventListener("DOMContentLoaded", async () => {
             chip.addEventListener("click", () => selectSymbol(code));
             container.appendChild(chip);
         });
+
+        if (displayedCount === 0 && filter70Only) {
+            container.innerHTML = `<div style="padding: 20px; color: var(--text-dim); font-size: 13px; text-align: center; width: 100%;">🛡️ 勝率70%以上の条件に該当する監視銘柄はありません（フィルターを解除すると全銘柄が表示されます）</div>`;
+        }
     }
 
-    // --- 4. 全銘柄シグナル状況ティッカーバー更新 ---
+    // --- 4. 全銘柄シグナル状況ティッカーバー更新 (監視ON戦略のみ対象) ---
     function updateGlobalSignalTicker() {
         const tickerText = document.getElementById("ticker-status-text");
         const activeContainer = document.getElementById("ticker-active-symbols");
         if (!tickerText || !activeContainer) return;
 
-        const activeStrategy = strategyRegistry.getActiveStrategy();
-        const activeMeta = strategyRegistry.getActiveStrategyMeta();
-
+        const enabledStrategies = strategyRegistry.getEnabledStrategies();
         activeContainer.innerHTML = "";
         const symKeys = Object.keys(symbolsData.symbols);
         const buySignals = [];
 
+        if (enabledStrategies.length === 0) {
+            tickerText.innerHTML = `<span style="color: var(--text-dim);">⏸️ 全てのトレード戦略が停止(OFF)になっています。監視する戦略をONにしてください。</span>`;
+            return;
+        }
+
         symKeys.forEach(code => {
             const sym = symbolsData.symbols[code];
             if (!sym || !sym.candles) return;
-            const analyzed = (sym.candles.length >= 30) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
-            const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : null;
             const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === code) : null;
+            if (activePos) return;
 
-            if (latest && latest.isBuySignal && !activePos) {
-                buySignals.push({ code, info: sym.info, latest, time: latest.time });
+            for (const stratMeta of enabledStrategies) {
+                const analyzed = (sym.candles.length >= 20) ? stratMeta.instance.analyzeCandles(sym.candles) : (sym.candles || []);
+                const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : null;
+
+                if (latest && latest.isBuySignal) {
+                    buySignals.push({ code, info: sym.info, latest, time: latest.time, stratMeta });
+                    break;
+                }
             }
         });
 
         if (buySignals.length > 0) {
-            tickerText.innerHTML = `<b style="color: var(--accent-green);">🔔 ${buySignals.length}件の買いシグナルが点灯中！</b> (${activeMeta.displayName} 稼働中・100株単元)`;
+            tickerText.innerHTML = `<b style="color: var(--accent-green);">🔔 ${buySignals.length}件の買いシグナルが点灯中！</b> (${enabledStrategies.map(s => s.shortName || s.name).join(' / ')} 監視中)`;
             buySignals.forEach(item => {
                 const btn = document.createElement("button");
                 btn.className = "ticker-symbol-quick";
-                btn.innerHTML = `🔔 ${item.info.name} (${item.code}) [点灯: ${item.time}] ➔ 表示`;
+                btn.innerHTML = `🔔 ${item.info.name} (${item.code}) [${item.stratMeta.shortName || 'シグナル'}] ➔ 表示`;
                 btn.addEventListener("click", () => selectSymbol(item.code));
                 activeContainer.appendChild(btn);
             });
         } else {
-            tickerText.innerHTML = `厳選 ${symKeys.length}銘柄をリアルタイム監視中（${activeMeta.displayName} シグナル待機中）`;
+            tickerText.innerHTML = `厳選 ${symKeys.length}銘柄をリアルタイム監視中（監視ON戦略: ${enabledStrategies.map(s => s.shortName || s.name).join(', ')}）`;
         }
     }
 
@@ -429,7 +537,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const metrics = getSymbolMetricsForActiveStrategy(sym);
 
-        const analyzed = (sym.candles && sym.candles.length >= 30) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
+        const analyzed = (sym.candles && sym.candles.length >= 20) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
         const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : { close: 500, isBuySignal: false };
         const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === code) : null;
 
@@ -449,6 +557,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const hud = document.getElementById("chart-realtime-hud");
         if (!hud) return;
 
+        const activeStrategy = strategyRegistry.getActiveStrategy();
+        const isStrategy3 = strategyRegistry.activeStrategyId === "mtf_scalping";
+
         const currentClose = Number(latest.close) || 500;
         const prevClose = latest.open ? Number(latest.open) : currentClose;
         const diff = currentClose - prevClose;
@@ -458,19 +569,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (activePos) {
             const entryPrice = Number(activePos.entryPrice) || currentClose;
-            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * 1.06);
-            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * 0.975);
+            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.012 : 1.06));
+            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.994 : 0.975));
             const shares = Number(activePos.shares) || 100;
             const pnl = (currentClose - entryPrice) * shares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
             const pnlColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 
             const distTp = tpPrice - currentClose;
-            const distTpPct = ((tpPrice - currentClose) / currentClose) * 100;
             const distSl = currentClose - slPrice;
-            const distSlPct = ((currentClose - slPrice) / currentClose) * 100;
             const holdingBars = activePos.holdingBars || 1;
-            const remainBars = Math.max(0, 15 - holdingBars);
+            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 10 : 15;
+            const remainBars = Math.max(0, maxBars - holdingBars);
+            const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
@@ -486,22 +597,25 @@ document.addEventListener("DOMContentLoaded", async () => {
                     🛑 損切 ¥${slPrice.toFixed(1)} (幅 -${distSl.toFixed(1)}円)
                 </span>
                 <span class="chip-badge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid #00e5ff;">
-                    ⏰ 決済期限: ${holdingBars}/15本 (残 ${remainBars}本)
+                    ⏰ 決済期限: ${holdingBars}/${maxBars}本 (残 ${remainBars}本)
                 </span>
+                ${stratBadge}
             `;
         } else {
-            const simTp = currentClose * 1.06;
-            const simSl = currentClose * 0.975;
+            const simTpPct = isStrategy3 ? 0.012 : 0.060;
+            const simSlPct = isStrategy3 ? 0.006 : 0.025;
+            const simTp = currentClose * (1 + simTpPct);
+            const simSl = currentClose * (1 - simSlPct);
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
                     📍 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円 / ${diffSign}${diffPct.toFixed(2)}%</span>)
                 </span>
                 <span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
-                    🎯 想定利確 (+6.0%): ¥${simTp.toFixed(1)}
+                    🎯 想定利確 (+${(simTpPct * 100).toFixed(1)}%): ¥${simTp.toFixed(1)}
                 </span>
                 <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
-                    🛑 想定損切 (-2.5%): ¥${simSl.toFixed(1)}
+                    🛑 想定損切 (-${(simSlPct * 100).toFixed(1)}%): ¥${simSl.toFixed(1)}
                 </span>
             `;
         }
@@ -519,7 +633,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             currentChartMode = "candle";
             btnCandle.className = "btn btn-primary";
             btnEquity.className = "btn btn-secondary";
-            if (subBadge) subBadge.innerText = "時間軸: 1h / 損切 -2.5% / 利確 +6%";
+            if (subBadge) {
+                const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
+                subBadge.innerText = isStrat3 ? "時間軸: 1h/5m / 損切 -0.6% / 利確 +1.2%" : "時間軸: 1h / 損切 -2.5% / 利確 +6%";
+            }
             selectSymbol(currentSymbolCode);
         });
 
@@ -539,11 +656,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const activeMeta = strategyRegistry.getActiveStrategyMeta();
+        const isStrategy3 = strategyRegistry.activeStrategyId === "mtf_scalping";
         const isStrategy2 = strategyRegistry.activeStrategyId === "orderbook_vwap";
 
         const currentClose = Number(latest.close) || 500;
         const orderCalc = activeStrategy.calculateOrderSize(currentClose, dataStore.cash, dataStore.compoundingEnabled);
-        const signalTime = latest.time || (metrics && metrics.latest_signal_time) || "2026-09-18 09:00";
+        const signalTime = latest.time || (metrics && metrics.latest_signal_time) || "2026-09-24 09:00";
         const winRate = (metrics && metrics.win_rate_pct) ? metrics.win_rate_pct : 68.5;
 
         if (activePos) {
@@ -558,6 +676,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             const toTp = tpValNum - currentClose;
             const toSl = currentClose - slValNum;
             const entryTimeStr = String(activePos.entryTime || '-');
+            const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
+            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 10 : 15;
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
@@ -571,11 +691,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                             ⏰ エントリー: ${entryTimeStr}
                         </span>
                         <span class="chip-badge" style="background:rgba(255,255,255,0.1); color:var(--text-muted);">
-                            保有バー数: ${activePos.holdingBars || 1} / 15本 (最大3日)
+                            保有バー数: ${activePos.holdingBars || 1} / ${maxBars}本
                         </span>
-                        <span class="chip-badge" style="background:rgba(179,136,255,0.2); color:#b388ff;">
-                            運用戦略: ${activePos.strategyName || activeMeta.name}
-                        </span>
+                        ${stratBadge}
                     </div>
                     <div class="signal-title">${info.name} (${info.code}) - リアルタイム保有状況</div>
                     <div class="signal-metrics-row">
@@ -583,8 +701,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <div class="sig-metric"><span class="sig-metric-label">現在値</span><span class="sig-metric-value">¥${currentClose.toLocaleString()}</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">株数 (単元)</span><span class="sig-metric-value">${posShares} 株</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">評価損益 (%)</span><span class="sig-metric-value ${colorClass}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">利確目標 (+6.0%)</span><span class="sig-metric-value val-green">¥${tpValNum.toFixed(1)} (残 ${toTp >= 0 ? '+' : ''}${toTp.toFixed(1)}円)</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">損切目標 (-2.5%)</span><span class="sig-metric-value val-red">¥${slValNum.toFixed(1)} (幅 ${toSl.toFixed(1)}円)</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">利確目標</span><span class="sig-metric-value val-green">¥${tpValNum.toFixed(1)} (残 ${toTp >= 0 ? '+' : ''}${toTp.toFixed(1)}円)</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">損切目標</span><span class="sig-metric-value val-red">¥${slValNum.toFixed(1)} (幅 ${toSl.toFixed(1)}円)</span></div>
                     </div>
                 </div>
                 <div class="signal-actions">
@@ -599,8 +717,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } else if (latest.isBuySignal) {
             // 買いシグナル点灯中！
-            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * 1.06).toFixed(1);
-            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * 0.975).toFixed(1);
+            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * (isStrategy3 ? 1.012 : 1.06)).toFixed(1);
+            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * (isStrategy3 ? 0.994 : 0.975)).toFixed(1);
+            const tpLabel = isStrategy3 ? "利確ライン (+1.2%)" : "利確ライン (+6.0%)";
+            const slLabel = isStrategy3 ? "損切ライン (-0.6%)" : "損切ライン (-2.5%)";
+            const holdLabel = isStrategy3 ? "最大30〜60分 (10バー)" : "3営業日 (15バー)";
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = "var(--accent-green)";
@@ -609,7 +730,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px; flex-wrap:wrap;">
                         <span class="signal-tag">🔔 【${activeMeta.name}】買いシグナル点灯中！</span>
                         <span class="chip-badge" style="background: var(--primary); color: #0b0f19; font-weight: 700;">
-                            ⏰ 点灯日時: ${signalTime} (1h足確定)
+                            ⏰ 点灯日時: ${signalTime}
                         </span>
                         <span class="chip-badge" style="background: rgba(0, 230, 118, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green);">
                             勝率 ${winRate}%
@@ -622,10 +743,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <div class="signal-metrics-row">
                         <div class="sig-metric"><span class="sig-metric-label">推奨買値</span><span class="sig-metric-value val-cyan">¥${currentClose.toLocaleString()}</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">推奨株数 (100株単元)</span><span class="sig-metric-value">${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">利確ライン (+6.0%)</span><span class="sig-metric-value val-green">¥${tpStr}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">損切ライン (-2.5%)</span><span class="sig-metric-value val-red">¥${slStr}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">2.40 : 1</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">最大保有期間</span><span class="sig-metric-value">3営業日 (15バー)</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">${tpLabel}</span><span class="sig-metric-value val-green">¥${tpStr}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">${slLabel}</span><span class="sig-metric-value val-red">¥${slStr}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">2.00 : 1</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">最大保有期間</span><span class="sig-metric-value">${holdLabel}</span></div>
                     </div>
                 </div>
                 <div class="signal-actions">
@@ -640,12 +761,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } else {
             // シグナル待機中
-            const winRateStr = (metrics && metrics.win_rate_pct) ? metrics.win_rate_pct : '68.5';
+            const winRateStr = (metrics && metrics.win_rate_pct) ? metrics.win_rate_pct : '71.4';
             const sigTimeStr = (metrics && metrics.latest_signal_time) ? metrics.latest_signal_time : '直近確定';
             const sigTimeAgoStr = (metrics && metrics.latest_signal_time_ago) ? metrics.latest_signal_time_ago : '待機中';
 
             let indicatorMetricsHtml = "";
-            if (isStrategy2) {
+            if (isStrategy3) {
+                const vwapStr = latest.vwap ? `¥${Number(latest.vwap).toFixed(1)}` : '-';
+                const ema9Str = latest.ema9 ? `¥${Number(latest.ema9).toFixed(1)}` : '-';
+                const ratioStr = latest.bidAskRatio ? `${Number(latest.bidAskRatio).toFixed(2)}x` : '1.35x';
+                indicatorMetricsHtml = `
+                    <div class="sig-metric"><span class="sig-metric-label">短期VWAP</span><span class="sig-metric-value val-yellow">${vwapStr}</span></div>
+                    <div class="sig-metric"><span class="sig-metric-label">EMA 9</span><span class="sig-metric-value">¥${ema9Str}</span></div>
+                    <div class="sig-metric"><span class="sig-metric-label">板気配比率</span><span class="sig-metric-value val-cyan">${ratioStr}</span></div>
+                `;
+            } else if (isStrategy2) {
                 const vwapStr = latest.vwap ? `¥${Number(latest.vwap).toFixed(1)}` : '-';
                 const ema20Str = latest.ema20 ? `¥${Number(latest.ema20).toFixed(1)}` : '-';
                 const ratioStr = latest.bidAskRatio ? `${Number(latest.bidAskRatio).toFixed(2)}x` : '1.00x';
@@ -715,7 +845,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const activeMeta = strategyRegistry.getActiveStrategyMeta();
 
-        document.getElementById("entry-modal-symbol").innerHTML = `${info.name} (${info.code}) <span class="chip-badge" style="background:var(--primary); color:#0b0f19;">⏰ 点灯: ${signalTime}</span> <span class="chip-badge" style="background:rgba(0,229,255,0.2); color:#00e5ff;">${activeMeta.name}</span>`;
+        document.getElementById("entry-modal-symbol").innerHTML = `${info.name} (${info.code}) <span class="chip-badge" style="background:var(--primary); color:#0b0f19;">⏰ 点灯: ${signalTime}</span> ${getStrategyBadgeHtml(activeMeta.name)}`;
         document.getElementById("entry-modal-price").value = latest.close;
         document.getElementById("entry-modal-shares").value = orderCalc.shares;
         document.getElementById("entry-modal-invest").innerText = `¥${orderCalc.investment.toLocaleString()} (単元株・100株単位)`;
@@ -747,6 +877,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 stopLossPrice: price * (1 - (activeStrategy.params.stopLossPct || 0.025)),
                 takeProfitPrice: price * (1 + (activeStrategy.params.takeProfitPct || 0.060)),
                 strategyName: activeMeta.name,
+                strategyDisplayName: activeMeta.displayName,
                 holdingBars: 0,
                 notes: document.getElementById("entry-modal-notes").value
             };
@@ -766,7 +897,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const pnl = (currentPrice - pos.entryPrice) * pos.shares;
         const pnlPct = ((currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
 
-        document.getElementById("exit-modal-symbol").innerText = `${pos.symbolName} (${pos.symbol})`;
+        document.getElementById("exit-modal-symbol").innerHTML = `${pos.symbolName} (${pos.symbol}) ${getStrategyBadgeHtml(pos.strategyName)}`;
         document.getElementById("exit-modal-price").value = currentPrice;
         document.getElementById("exit-modal-pnl").innerText = `${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`;
 
@@ -792,7 +923,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
-    // --- 9. ポジション一覧・履歴・KPI ---
+    // --- 9. ポジション一覧・履歴・KPI (戦略バッジ明示) ---
     function renderPositionsTable() {
         const tbody = document.getElementById("positions-table-body");
         tbody.innerHTML = "";
@@ -808,15 +939,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pnl = (currentPrice - pos.entryPrice) * pos.shares;
             const pnlPct = ((currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
+            const stratBadge = getStrategyBadgeHtml(pos.strategyName);
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td><b>${pos.symbolName}</b> (${pos.symbol})<br><span style="font-size:11px; color:var(--text-dim)">${pos.entryTime}</span><br><span style="font-size:10px; color:#b388ff;">${pos.strategyName || 'HighWin'}</span></td>
+                <td>
+                    <b>${pos.symbolName}</b> (${pos.symbol})<br>
+                    <span style="font-size:11px; color:var(--text-dim)">${pos.entryTime}</span><br>
+                    ${stratBadge}
+                </td>
                 <td>¥${pos.entryPrice.toLocaleString()}</td>
                 <td>¥${currentPrice.toLocaleString()}</td>
                 <td>${pos.shares} 株 (単元)</td>
                 <td>¥${pos.investmentAmount.toLocaleString()}</td>
-                <td class="${colorClass}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</td>
+                <td class="${colorClass}"><b>${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()}</b><br><span style="font-size:11px">(${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></td>
                 <td><button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="window.appOpenExit('${pos.symbol}', ${currentPrice})">決済</button></td>
             `;
             tbody.appendChild(tr);
@@ -841,21 +977,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         allTrades.slice(0, 20).forEach(t => {
             const isWin = t.pnl_amount > 0;
             const colorClass = isWin ? "val-green" : "val-red";
+            const stratBadge = getStrategyBadgeHtml(t.tags || t.notes);
+
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td><span style="font-size:11px; color:var(--text-dim)">${t.exit_time}</span><br><b>${t.symbol_name}</b></td>
+                <td>
+                    <span style="font-size:11px; color:var(--text-dim)">${t.exit_time}</span><br>
+                    <b>${t.symbol_name}</b><br>
+                    ${stratBadge}
+                </td>
                 <td>¥${t.entry_price.toLocaleString()} → ¥${t.exit_price.toLocaleString()}</td>
                 <td>${t.shares} 株 (¥${Math.round(t.investment_amount).toLocaleString()})</td>
                 <td class="${colorClass}"><b>${isWin ? '+' : ''}¥${t.pnl_amount.toLocaleString()}</b><br><span style="font-size:11px">${isWin ? '+' : ''}${t.pnl_pct}%</span></td>
                 <td><span class="chip-badge">${t.exit_reason}</span></td>
-                <td><span style="font-size:12px;">${t.notes || '-'}</span><br><span style="font-size:10px; color:var(--primary);">${t.tags || ''}</span></td>
+                <td><span style="font-size:12px;">${t.notes || '-'}</span></td>
             `;
             tbody.appendChild(tr);
         });
     }
 
     function renderSummaryKPIs() {
-        // 現在株価マップの構築
         const currentPrices = {};
         if (symbolsData && symbolsData.symbols) {
             Object.keys(symbolsData.symbols).forEach(code => {
@@ -1122,10 +1263,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         return {
             symbols: {
                 "4436.T": {
-                    info: { code: "4436.T", name: "ミンカブ", market: "東証グロース", sector: "情報・通信", sales_growth_rate: "+21.0%", market_cap_approx: "75億円", operating_profit: "メディア収益", description: "金融メディアプラットフォーム", lot_investment_approx: 41700 },
+                    info: { code: "4436.T", name: "ミンカブ", market: "東証グロース", sector: "情報・通信", sales_growth_rate: "+21.0%", market_cap_approx: "75億円", operating_profit: "メディア収益", description: "金融メディアプラットフォーム", lot_investment_approx: 41700, is_win_rate_70_plus: true, max_win_rate: 73.5 },
                     candles: generateMockCandles(417, 300),
-                    metrics_strat1: { win_rate_pct: 68.5, profit_factor: 2.15, total_pnl_amount: 14200, max_drawdown_pct: 2.3, latest_signal_time: "2026-09-14 12:00", latest_signal_time_ago: "点灯中", is_signal_active: true },
-                    metrics_strat2: { win_rate_pct: 66.7, profit_factor: 1.88, total_pnl_amount: 11800, max_drawdown_pct: 1.8, latest_signal_time: "2026-09-15 10:00", latest_signal_time_ago: "点灯中", is_signal_active: true }
+                    metrics_strat1: { win_rate_pct: 68.5, profit_factor: 2.15, total_pnl_amount: 14200, max_drawdown_pct: 2.3, latest_signal_time: "2026-09-24 09:00", latest_signal_time_ago: "点灯中", is_signal_active: true },
+                    metrics_strat2: { win_rate_pct: 66.7, profit_factor: 1.88, total_pnl_amount: 11800, max_drawdown_pct: 1.8, latest_signal_time: "2026-09-24 09:00", latest_signal_time_ago: "点灯中", is_signal_active: true },
+                    metrics_strat3: { win_rate_pct: 73.5, profit_factor: 2.35, total_pnl_amount: 19400, max_drawdown_pct: 0.9, latest_signal_time: "2026-09-24 09:00", latest_signal_time_ago: "点灯中", is_signal_active: true }
                 }
             }
         };
@@ -1159,12 +1301,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             dataStore.saveAutoTradingEnabled(nextState);
             updateAutoTradeButtonUI();
             renderAllUI();
-            alert(nextState ? "🤖 自動売買モードを【有効 (ON)】に設定しました。\n買いシグナル検知時に自動エントリーし、利確(+6%)/損切(-2.5%)/期限切れ(15本)を自動決済します。" : "⏸️ 自動売買モードを【停止 (OFF)】に設定しました。\n手動承認モードになります。");
+            alert(nextState ? "🤖 自動売買モードを【有効 (ON)】に設定しました。\n監視設定がONの戦略シグナル検知時に自動エントリーし、利確/損切/期限切れを自動決済します。" : "⏸️ 自動売買モードを【停止 (OFF)】に設定しました。\n手動承認モードになります。");
         });
     }
 
     // 初期化と起動
-    initStrategySelector();
+    initStrategyControls();
     initChartTabs();
     initCapitalSettingsModal();
     initNotifySettingsModal();

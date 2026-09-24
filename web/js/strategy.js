@@ -343,7 +343,191 @@ class OrderBookVWAPPullbackStrategy {
 }
 
 /**
- * 戦略レジストリ・マネージャー
+ * 【戦略3】マルチタイムフレーム高速スキャル・デイトレ戦略 (MTFScalpingStrategy)
+ * 1時間以内に数回のトレード（高速利確・微損撤退）を行える高回転戦略
+ * - 上位足大局トレンド × 下位足短期VWAP反発・直近高値ブレイク ＋ 板気配インバランス1.30倍
+ * - 利確: +1.2%, 損切: -0.6%, 最大保有: 10バー (約30分〜60分以内)
+ */
+class MTFScalpingStrategy {
+    constructor(params = {}) {
+        this.params = Object.assign({
+            stopLossPct: 0.006,        // 損切り: -0.6%
+            takeProfitPct: 0.012,      // 利確: +1.2% (RR比 2.00:1)
+            maxHoldingBars: 10,        // 最大保有: 10バー (30〜60分)
+            maxBudget: 100000.0,       // 1回の投資上限: 10万円
+            rsiPeriod: 9,
+            rsiMin: 45.0,
+            rsiMax: 65.0,
+            emaFast: 9,
+            emaMid: 20,
+            emaSlow: 50,
+            imbalanceThreshold: 1.30,
+            breakoutLookback: 6
+        }, params);
+    }
+
+    calculateEMA(prices, period) {
+        const k = 2 / (period + 1);
+        const emaArray = [];
+        let ema = prices[0];
+        emaArray.push(ema);
+
+        for (let i = 1; i < prices.length; i++) {
+            ema = (prices[i] * k) + (ema * (1 - k));
+            emaArray.push(ema);
+        }
+        return emaArray;
+    }
+
+    calculateRSI(prices, period = 9) {
+        const rsiArray = new Array(prices.length).fill(null);
+        if (prices.length <= period) return rsiArray;
+
+        let gains = 0, losses = 0;
+        for (let i = 1; i <= period; i++) {
+            const diff = prices[i] - prices[i - 1];
+            if (diff >= 0) gains += diff;
+            else losses -= diff;
+        }
+
+        let avgGain = gains / period;
+        let avgLoss = losses / period;
+        rsiArray[period] = 100 - (100 / (1 + (avgGain / (avgLoss + 1e-9))));
+
+        for (let i = period + 1; i < prices.length; i++) {
+            const diff = prices[i] - prices[i - 1];
+            const gain = diff > 0 ? diff : 0;
+            const loss = diff < 0 ? -diff : 0;
+
+            avgGain = ((avgGain * (period - 1)) + gain) / period;
+            avgLoss = ((avgLoss * (period - 1)) + loss) / period;
+
+            const rs = avgGain / (avgLoss + 1e-9);
+            rsiArray[i] = 100 - (100 / (1 + rs));
+        }
+        return rsiArray;
+    }
+
+    calculateVWAP(candles) {
+        let cumVol = 0;
+        let cumTpVol = 0;
+        return candles.map(c => {
+            const vol = Number(c.volume) || 1000;
+            const tp = (Number(c.high) + Number(c.low) + Number(c.close)) / 3;
+            cumVol += vol;
+            cumTpVol += (tp * vol);
+            return cumVol > 0 ? (cumTpVol / cumVol) : Number(c.close);
+        });
+    }
+
+    analyzeCandles(candles) {
+        if (!candles || candles.length < 20) return [];
+
+        const closePrices = candles.map(c => Number(c.close));
+        const highPrices = candles.map(c => Number(c.high));
+        const lowPrices = candles.map(c => Number(c.low));
+
+        const ema9 = this.calculateEMA(closePrices, this.params.emaFast);
+        const ema20 = this.calculateEMA(closePrices, this.params.emaMid);
+        const ema50 = this.calculateEMA(closePrices, this.params.emaSlow);
+        const rsi = this.calculateRSI(closePrices, this.params.rsiPeriod);
+        const vwap = this.calculateVWAP(candles);
+
+        return candles.map((c, i) => {
+            const currentClose = Number(c.close);
+            const currentOpen = Number(c.open);
+            const currentLow = Number(c.low);
+            const currentHigh = Number(c.high);
+
+            // 直近6バー高値
+            let recentHigh = currentHigh;
+            if (i >= this.params.breakoutLookback) {
+                recentHigh = Math.max(...highPrices.slice(i - this.params.breakoutLookback, i));
+            }
+
+            // 板気配インバランス比率
+            const bidAskRatio = c.bid_ask_imbalance !== undefined ? Number(c.bid_ask_imbalance) : (c.bidAskRatio !== undefined ? Number(c.bidAskRatio) : 1.35);
+
+            // (1) 大局トレンド (EMA20 >= EMA50 または VWAP上)
+            const isTrendBullish = (ema20[i] >= ema50[i] * 0.997) || (currentClose >= vwap[i]);
+            // (2) 短期押し目タッチ反発 (EMA9またはVWAP) または 直近高値ブレイク
+            const isPullback = (currentLow <= ema9[i] * 1.006) && (currentClose >= ema9[i] * 0.996);
+            const isBreakout = currentClose >= recentHigh * 0.999;
+            const isTrigger = isPullback || isBreakout;
+            // (3) 陽線反発
+            const isCandleValid = (currentClose >= currentOpen) || ((currentClose - currentLow) > (currentHigh - currentClose));
+            // (4) 板気配インバランス急増
+            const isOrderBookValid = bidAskRatio >= this.params.imbalanceThreshold;
+            // (5) RSI健全圏
+            const isRsiValid = rsi[i] !== null && rsi[i] >= this.params.rsiMin && rsi[i] <= this.params.rsiMax;
+
+            const isBuySignal = isTrendBullish && isTrigger && isCandleValid && isOrderBookValid && isRsiValid;
+
+            return {
+                time: c.time,
+                open: currentOpen,
+                high: currentHigh,
+                low: currentLow,
+                close: currentClose,
+                volume: Number(c.volume) || 0,
+                vwap: vwap[i],
+                ema9: ema9[i],
+                ema20: ema20[i],
+                ema50: ema50[i],
+                rsi: rsi[i],
+                recentHigh: recentHigh,
+                bidAskRatio: bidAskRatio,
+                isBuySignal: isBuySignal,
+                stopLossPrice: currentClose * (1 - this.params.stopLossPct),
+                takeProfitPrice: currentClose * (1 + this.params.takeProfitPct),
+                strategyName: "HighWin_MTF_Scalping_Breakout"
+            };
+        });
+    }
+
+    calculateOrderSize(price, availableCash = 300000.0, compoundingEnabled = true) {
+        if (!price || price <= 0) {
+            return { shares: 0, investment: 0, isUnitLot: false, note: "価格取得エラー" };
+        }
+
+        const lotCost = price * 100;
+        if (lotCost > availableCash) {
+            return {
+                shares: 0,
+                investment: 0,
+                isUnitLot: false,
+                note: `資金不足 (100株単元 ¥${Math.round(lotCost).toLocaleString()} > 残高 ¥${Math.round(availableCash).toLocaleString()})`
+            };
+        }
+
+        let budget;
+        if (compoundingEnabled) {
+            const dynamicLimit = Math.max(100000.0, availableCash * 0.35);
+            budget = Math.min(dynamicLimit, availableCash);
+        } else {
+            budget = Math.min(this.params.maxBudget, availableCash);
+        }
+
+        const maxLots = Math.floor(budget / lotCost);
+        const shares = Math.max(100, maxLots * 100);
+        const finalShares = (shares * price <= availableCash) ? shares : Math.floor(availableCash / lotCost) * 100;
+        const investment = Math.round(finalShares * price);
+
+        if (finalShares <= 0) {
+            return { shares: 0, investment: 0, isUnitLot: false, note: `購入不可 (残高 ¥${Math.round(availableCash).toLocaleString()})` };
+        }
+
+        return {
+            shares: finalShares,
+            investment: investment,
+            isUnitLot: true,
+            note: `${finalShares}株 (100株単元・${compoundingEnabled ? '複利運用' : '固定枠'})`
+        };
+    }
+}
+
+/**
+ * 戦略レジストリ・マネージャー (個別監視ON/OFF対応)
  */
 class StrategyRegistry {
     constructor() {
@@ -352,18 +536,34 @@ class StrategyRegistry {
                 id: "triple_confluence",
                 name: "HighWin_TripleConfluence",
                 displayName: "【戦略1】TripleConfluence (EMA×MACD×RSI同期)",
-                description: "EMA10/25ゴールデンクロス × MACD好転 × RSIモメンタムの3指標合致によるダマシ排除スイング戦略",
+                shortName: "戦略1: スイング",
+                badgeColor: "#00e5ff",
+                description: "EMA10/25ゴールデンクロス × MACD好転 × RSIモメンタムの3指標合致によるダマシ排除スイング戦略 (利確+6% / 損切-2.5% / 最大3日)",
+                enabled: true,
                 instance: new TripleConfluenceStrategy()
             },
             "orderbook_vwap": {
                 id: "orderbook_vwap",
                 name: "HighWin_OrderBook_VWAP_Pullback",
                 displayName: "【戦略2】板気配インバランス × VWAP反発押し目",
-                description: "大局上昇トレンド中のVWAP支持線タッチ ＋ 買い板気配急増(大口買い支え)を狙う高勝率スイング戦略",
+                shortName: "戦略2: 板気配VWAP",
+                badgeColor: "#b388ff",
+                description: "大局上昇トレンド中のVWAP支持線タッチ ＋ 買い板気配急増(大口買い支え)を狙う高勝率スイング戦略 (利確+6% / 損切-2.5% / 最大3日)",
+                enabled: true,
                 instance: new OrderBookVWAPPullbackStrategy()
+            },
+            "mtf_scalping": {
+                id: "mtf_scalping",
+                name: "HighWin_MTF_Scalping_Breakout",
+                displayName: "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
+                shortName: "戦略3: 高速デイトレ",
+                badgeColor: "#ffd740",
+                description: "上位足トレンド × 下位足短期VWAP反発・直近高値ブレイクによる1時間以内高回転デイトレ戦略 (利確+1.2% / 損切-0.6% / 最大30〜60分)",
+                enabled: true,
+                instance: new MTFScalpingStrategy()
             }
         };
-        this.activeStrategyId = "triple_confluence";
+        this.activeStrategyId = "mtf_scalping"; // デフォルトで高速戦略をアクティブに
     }
 
     getActiveStrategy() {
@@ -382,12 +582,46 @@ class StrategyRegistry {
         return false;
     }
 
+    setStrategyEnabled(id, enabled) {
+        if (this.strategies[id]) {
+            this.strategies[id].enabled = Boolean(enabled);
+            return true;
+        }
+        return false;
+    }
+
+    isStrategyEnabled(id) {
+        return this.strategies[id] ? Boolean(this.strategies[id].enabled) : false;
+    }
+
+    getEnabledStrategies() {
+        return Object.values(this.strategies).filter(s => s.enabled);
+    }
+
     getStrategyList() {
         return Object.values(this.strategies);
+    }
+
+    getStrategyToggles() {
+        const toggles = {};
+        Object.keys(this.strategies).forEach(id => {
+            toggles[id] = this.strategies[id].enabled;
+        });
+        return toggles;
+    }
+
+    loadStrategyToggles(toggles) {
+        if (!toggles || typeof toggles !== "object") return;
+        Object.keys(toggles).forEach(id => {
+            if (this.strategies[id]) {
+                this.strategies[id].enabled = Boolean(toggles[id]);
+            }
+        });
     }
 }
 
 // グローバル公開
 window.TripleConfluenceStrategy = TripleConfluenceStrategy;
 window.OrderBookVWAPPullbackStrategy = OrderBookVWAPPullbackStrategy;
+window.MTFScalpingStrategy = MTFScalpingStrategy;
 window.StrategyRegistry = StrategyRegistry;

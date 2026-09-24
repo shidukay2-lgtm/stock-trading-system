@@ -11,6 +11,8 @@ class DataStore {
         this.STORAGE_KEY_NOTES = "sts_trade_notes_v1";
         this.STORAGE_KEY_ACCOUNT = "sts_account_data_v1";
         this.STORAGE_KEY_AUTOTRADE = "sts_autotrade_enabled_v1";
+        this.STORAGE_KEY_STRATEGY_TOGGLES = "sts_strategy_toggles_v1";
+        this.STORAGE_KEY_FILTER_70 = "sts_filter_70_plus_v1";
 
         // 初期値
         this.initialCapital = 300000;
@@ -21,8 +23,40 @@ class DataStore {
         this.notes = this.loadLocalNotes();
         this.equityHistory = this.loadLocalEquityHistory();
         this.autoTradingEnabled = this.loadAutoTradingEnabled();
+        this.strategyToggles = this.loadStrategyToggles();
+        this.filter70PlusOnly = this.loadFilter70PlusOnly();
 
         this.loadLocalAccount();
+    }
+
+    loadStrategyToggles() {
+        try {
+            const raw = localStorage.getItem(this.STORAGE_KEY_STRATEGY_TOGGLES);
+            if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return { triple_confluence: true, orderbook_vwap: true, mtf_scalping: true };
+    }
+
+    saveStrategyToggles(toggles) {
+        this.strategyToggles = toggles;
+        try {
+            localStorage.setItem(this.STORAGE_KEY_STRATEGY_TOGGLES, JSON.stringify(toggles));
+        } catch (e) {}
+    }
+
+    loadFilter70PlusOnly() {
+        try {
+            const raw = localStorage.getItem(this.STORAGE_KEY_FILTER_70);
+            if (raw !== null) return JSON.parse(raw);
+        } catch (e) {}
+        return false;
+    }
+
+    saveFilter70PlusOnly(enabled) {
+        this.filter70PlusOnly = Boolean(enabled);
+        try {
+            localStorage.setItem(this.STORAGE_KEY_FILTER_70, JSON.stringify(this.filter70PlusOnly));
+        } catch (e) {}
     }
 
     // --- 1. サーバーDBとの非同期同期 ---
