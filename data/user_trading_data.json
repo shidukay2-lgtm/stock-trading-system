@@ -1,55 +1,16 @@
 {
   "account": {
     "initialCapital": 300000,
-    "cash": 299700,
+    "cash": 300000,
     "compoundingEnabled": true,
     "maxAllocationPct": 0.4,
-    "updatedAt": "2026-09-25T00:38:59.245Z"
+    "updatedAt": "2026-09-25T01:01:04.063Z"
   },
   "positions": [],
-  "trades": [
-    {
-      "trade_id": "REAL-MUG8GCYP",
-      "symbol": "5246.T",
-      "symbol_name": "ELEMENTS",
-      "strategy_name": "HighWin_MTF_Scalping_Breakout",
-      "entry_time": "2026-09-25 09:08:39",
-      "exit_time": "2026-09-25 09:38:59",
-      "entry_price": 863,
-      "exit_price": 860,
-      "shares": 100,
-      "investment_amount": 86300,
-      "pnl_amount": -300,
-      "pnl_pct": -0.35,
-      "holding_bars": 1,
-      "holding_days": 0.2,
-      "exit_reason": "TIMEOUT",
-      "notes": "⌛ スキャルピング保有期限満了決済 (30分経過: ¥860)",
-      "tags": "#AUTO #TIMEOUT #HighWin_MTF_Scalping_Breakout"
-    },
-    {
-      "trade_id": "REAL-MUG8GCS2",
-      "symbol": "7383.T",
-      "symbol_name": "ネットプロHD",
-      "strategy_name": "HighWin_MTF_Scalping_Breakout",
-      "entry_time": "2026-09-25 09:08:38",
-      "exit_time": "2026-09-25 09:38:58",
-      "entry_price": 396,
-      "exit_price": 396,
-      "shares": 200,
-      "investment_amount": 79200,
-      "pnl_amount": 0,
-      "pnl_pct": 0,
-      "holding_bars": 1,
-      "holding_days": 0.2,
-      "exit_reason": "TIMEOUT",
-      "notes": "⌛ スキャルピング保有期限満了決済 (30分経過: ¥396)",
-      "tags": "#AUTO #TIMEOUT #HighWin_MTF_Scalping_Breakout"
-    }
-  ],
+  "trades": [],
   "equityHistory": [
     {
-      "time": "2026-09-25 08:33",
+      "time": "2026-09-25 10:01",
       "equity": 300000,
       "cash": 300000,
       "positionsValue": 0,
@@ -57,26 +18,6 @@
       "unrealizedPnl": 0,
       "returnPct": 0,
       "note": "データリセット (元本 ¥300,000)"
-    },
-    {
-      "time": "2026-09-25 09:38:58",
-      "equity": 300000,
-      "cash": 213700,
-      "positionsValue": 0,
-      "realizedPnl": 0,
-      "unrealizedPnl": 0,
-      "returnPct": 0,
-      "note": "ネットプロHD 決済: +¥0 (TIMEOUT)"
-    },
-    {
-      "time": "2026-09-25 09:38:59",
-      "equity": 299700,
-      "cash": 299700,
-      "positionsValue": 0,
-      "realizedPnl": -300,
-      "unrealizedPnl": 0,
-      "returnPct": -0.1,
-      "note": "ELEMENTS 決済: ¥-300 (TIMEOUT)"
     }
   ]
 }
