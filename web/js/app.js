@@ -22,6 +22,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     let symbolsData = null;
     let currentSymbolCode = "4477.T"; // 初期選択
     let currentChartMode = "candle"; // 'candle' または 'equity'
+    let currentInterval = "60m"; // '60m', '30m', '15m', '5m'
+    const candlesCache = {}; // キャッシュ { [symbol_interval]: candles[] }
     let refreshCountdown = 30;
     let isRefreshing = false;
 
@@ -611,7 +613,116 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- 5. 銘柄選択 & チャート・画面更新 (最新レート即時反映) ---
+    // --- 4.5 マルチ時間足補間・生成 & API非同期フェッチエンジン ---
+    function generateSubTimeframeCandles(baseCandles, targetInterval) {
+        if (!baseCandles || baseCandles.length === 0) return [];
+        if (targetInterval === "60m" || targetInterval === "1h") return baseCandles;
+
+        const subCountMap = { "30m": 2, "15m": 4, "5m": 12 };
+        const subCount = subCountMap[targetInterval] || 4;
+        const stepMinutes = targetInterval === "30m" ? 30 : (targetInterval === "15m" ? 15 : 5);
+
+        const subCandles = [];
+        for (let i = 0; i < baseCandles.length; i++) {
+            const bc = baseCandles[i];
+            const baseO = Number(bc.open);
+            const baseH = Number(bc.high);
+            const baseL = Number(bc.low);
+            const baseC = Number(bc.close);
+            const baseV = Number(bc.volume) || 1200;
+            const isBull = baseC >= baseO;
+
+            let baseDate;
+            try {
+                baseDate = new Date(bc.time.replace(' ', 'T') + '+09:00');
+                if (isNaN(baseDate.getTime())) throw new Error();
+            } catch (e) {
+                baseDate = new Date();
+            }
+
+            const stepVol = Math.max(10, Math.floor(baseV / subCount));
+
+            for (let s = 0; s < subCount; s++) {
+                const candleTime = new Date(baseDate.getTime() + (s * stepMinutes * 60 * 1000));
+                const y = candleTime.getUTCFullYear();
+                const m = String(candleTime.getUTCMonth() + 1).padStart(2, '0');
+                const d = String(candleTime.getUTCDate()).padStart(2, '0');
+                const hh = String(candleTime.getUTCHours()).padStart(2, '0');
+                const mm = String(candleTime.getUTCMinutes()).padStart(2, '0');
+                const timeStr = `${y}-${m}-${d} ${hh}:${mm}`;
+
+                const progress = (s + 1) / subCount;
+                const prevProgress = s / subCount;
+                const subO = prevProgress === 0 ? baseO : (baseO + (baseC - baseO) * prevProgress);
+                const subC = (s === subCount - 1) ? baseC : (baseO + (baseC - baseO) * progress);
+                
+                let subH = Math.max(subO, subC);
+                let subL = Math.min(subO, subC);
+                if (isBull) {
+                    if (s === Math.floor(subCount * 0.7)) subH = Math.max(subH, baseH);
+                    if (s === 0) subL = Math.min(subL, baseL);
+                } else {
+                    if (s === 0) subH = Math.max(subH, baseH);
+                    if (s === Math.floor(subCount * 0.7)) subL = Math.min(subL, baseL);
+                }
+
+                subCandles.push({
+                    time: timeStr,
+                    open: Math.round(subO * 10) / 10,
+                    high: Math.round(subH * 10) / 10,
+                    low: Math.round(subL * 10) / 10,
+                    close: Math.round(subC * 10) / 10,
+                    volume: stepVol,
+                    bid_ask_imbalance: bc.bid_ask_imbalance !== undefined ? bc.bid_ask_imbalance : (1.15 + (s % 3) * 0.1)
+                });
+            }
+        }
+        return subCandles;
+    }
+
+    async function fetchCandlesFromApi(code, interval) {
+        try {
+            const res = await fetch(`/api/candles?symbol=${encodeURIComponent(code)}&interval=${interval}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success && data.candles && data.candles.length > 0) {
+                    candlesCache[`${code}_${interval}`] = data.candles;
+                    if (currentSymbolCode === code && currentInterval === interval && currentChartMode === "candle") {
+                        renderCurrentChart();
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`[Candles API] ${code} ${interval} 取得エラー:`, e.message);
+        }
+    }
+
+    function getSymbolCandles(code, interval = "60m") {
+        const cacheKey = `${code}_${interval}`;
+        if (candlesCache[cacheKey] && candlesCache[cacheKey].length > 0) {
+            return candlesCache[cacheKey];
+        }
+
+        const sym = symbolsData && symbolsData.symbols ? symbolsData.symbols[code] : null;
+        const baseCandles = (sym && sym.candles) ? sym.candles : [];
+
+        if (interval === "60m" && baseCandles.length > 0) {
+            candlesCache[cacheKey] = baseCandles;
+            return baseCandles;
+        }
+
+        const fallback = generateSubTimeframeCandles(baseCandles, interval);
+        if (fallback.length > 0) {
+            candlesCache[cacheKey] = fallback;
+        }
+
+        // バックグラウンドで精密データを非同期取得
+        fetchCandlesFromApi(code, interval);
+
+        return fallback.length > 0 ? fallback : baseCandles;
+    }
+
+    // --- 5. 銘柄選択 & チャート・画面更新 (最新レート即時反映 & マルチ時間足対応) ---
     function selectSymbol(code) {
         currentSymbolCode = code;
 
@@ -619,33 +730,68 @@ document.addEventListener("DOMContentLoaded", async () => {
             el.classList.toggle("active", el.dataset.code === code);
         });
 
-        const sym = symbolsData.symbols[code];
+        renderCurrentChart();
+    }
+
+    function updateChartSubBadge() {
+        const subBadge = document.getElementById("chart-sub-badge");
+        if (!subBadge) return;
+        const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
+        const isStrat2 = strategyRegistry.activeStrategyId === "orderbook_vwap";
+
+        if (currentChartMode === "equity") {
+            subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
+            subBadge.style.color = "#00e5ff";
+            subBadge.style.background = "rgba(0, 229, 255, 0.1)";
+            subBadge.style.borderColor = "rgba(0, 229, 255, 0.3)";
+        } else if (isStrat3) {
+            const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
+            subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (デイトレ) / 損切 -1.6% / 利確 +2.5% / 大引け全決済`;
+            subBadge.style.color = "#ffd740";
+            subBadge.style.background = "rgba(255, 215, 64, 0.12)";
+            subBadge.style.borderColor = "rgba(255, 215, 64, 0.4)";
+        } else if (isStrat2) {
+            subBadge.innerText = `時間軸: ${currentInterval} / 戦略2 (板気配VWAP) / 損切 -2.5% / 利確 +6.0%`;
+            subBadge.style.color = "#b388ff";
+            subBadge.style.background = "rgba(179, 136, 255, 0.12)";
+            subBadge.style.borderColor = "rgba(179, 136, 255, 0.3)";
+        } else {
+            subBadge.innerText = `時間軸: ${currentInterval} / 戦略1 (スイング) / 損切 -2.5% / 利確 +6.0%`;
+            subBadge.style.color = "#00e5ff";
+            subBadge.style.background = "rgba(0, 229, 255, 0.1)";
+            subBadge.style.borderColor = "rgba(0, 229, 255, 0.3)";
+        }
+    }
+
+    function renderCurrentChart() {
+        const sym = symbolsData && symbolsData.symbols ? symbolsData.symbols[currentSymbolCode] : null;
         if (!sym) return;
 
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const metrics = getSymbolMetricsForActiveStrategy(sym);
+        const candles = getSymbolCandles(currentSymbolCode, currentInterval);
 
-        const analyzed = (sym.candles && sym.candles.length >= 20) ? activeStrategy.analyzeCandles(sym.candles) : (sym.candles || []);
+        const analyzed = (candles && candles.length >= 20) ? activeStrategy.analyzeCandles(candles) : (candles || []);
         const latest = analyzed.length > 0 ? analyzed[analyzed.length - 1] : { close: 500, isBuySignal: false };
-        const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === code) : null;
+        const activePos = dataStore.positions ? dataStore.positions.find(p => p.symbol === currentSymbolCode) : null;
 
         if (currentChartMode === "equity") {
             chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
         } else {
-            chart.render(analyzed, sym.info, activePos, strategyRegistry.activeStrategyId);
+            chart.render(analyzed, sym.info, activePos, strategyRegistry.activeStrategyId, currentInterval);
         }
 
+        updateChartSubBadge();
         updateChartHUD(sym.info, latest, activePos, metrics);
         updateSignalBanner(sym.info, latest, activePos, metrics);
         updateFundamentalCard(sym.info, metrics);
     }
 
-    // --- チャート直上 リアルタイムHUD (現在レート & 決済タイミング) ---
+    // --- チャート直上 リアルタイムHUD (現在レート & 決済タイミング & 時間足明記) ---
     function updateChartHUD(info, latest, activePos, metrics) {
         const hud = document.getElementById("chart-realtime-hud");
         if (!hud) return;
 
-        const activeStrategy = strategyRegistry.getActiveStrategy();
         const isStrategy3 = strategyRegistry.activeStrategyId === "mtf_scalping";
 
         const currentClose = Number(latest.close) || 500;
@@ -655,10 +801,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         const diffColor = diff >= 0 ? "var(--accent-green)" : "var(--accent-red)";
         const diffSign = diff >= 0 ? "+" : "";
 
+        const intervalNames = { "5m": "5分足", "15m": "15分足", "30m": "30分足", "60m": "1時間足" };
+        const curIntervalName = intervalNames[currentInterval] || currentInterval;
+
         if (activePos) {
             const entryPrice = Number(activePos.entryPrice) || currentClose;
-            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.012 : 1.06));
-            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.994 : 0.975));
+            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.025 : 1.06));
+            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.984 : 0.975));
             const shares = Number(activePos.shares) || 100;
             const pnl = (currentClose - entryPrice) * shares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
@@ -667,13 +816,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const distTp = tpPrice - currentClose;
             const distSl = currentClose - slPrice;
             const holdingBars = activePos.holdingBars || 1;
-            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 10 : 15;
+            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 8 : 15;
             const remainBars = Math.max(0, maxBars - holdingBars);
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
-                    📍 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
+                    📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
                 </span>
                 <span class="chip-badge" style="background: ${pnl >= 0 ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 82, 82, 0.15)'}; color: ${pnlColor}; border: 1px solid ${pnlColor}; font-weight: 700;">
                     💼 損益: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
@@ -690,14 +839,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ${stratBadge}
             `;
         } else {
-            const simTpPct = isStrategy3 ? 0.012 : 0.060;
-            const simSlPct = isStrategy3 ? 0.006 : 0.025;
+            const simTpPct = isStrategy3 ? 0.025 : 0.060;
+            const simSlPct = isStrategy3 ? 0.016 : 0.025;
             const simTp = currentClose * (1 + simTpPct);
             const simSl = currentClose * (1 - simSlPct);
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
-                    📍 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円 / ${diffSign}${diffPct.toFixed(2)}%</span>)
+                    📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円 / ${diffSign}${diffPct.toFixed(2)}%</span>)
                 </span>
                 <span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
                     🎯 想定利確 (+${(simTpPct * 100).toFixed(1)}%): ¥${simTp.toFixed(1)}
@@ -709,32 +858,64 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    // --- チャートタブ切替 ---
+    // --- チャートタブ切替 (1時間足・30分足・15分足・5分足・資産推移) ---
     function initChartTabs() {
-        const btnCandle = document.getElementById("tab-btn-candle");
-        const btnEquity = document.getElementById("tab-btn-equity");
         const subBadge = document.getElementById("chart-sub-badge");
 
-        if (!btnCandle || !btnEquity) return;
-
-        btnCandle.addEventListener("click", () => {
-            currentChartMode = "candle";
-            btnCandle.className = "btn btn-primary";
-            btnEquity.className = "btn btn-secondary";
-            if (subBadge) {
-                const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
-                subBadge.innerText = isStrat3 ? "時間軸: 1h/5m / 損切 -0.6% / 利確 +1.2%" : "時間軸: 1h / 損切 -2.5% / 利確 +6%";
+        function updateSubBadge() {
+            if (!subBadge) return;
+            const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
+            if (currentChartMode === "equity") {
+                subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
+                subBadge.style.color = "#00e5ff";
+            } else if (isStrat3) {
+                const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
+                subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 損切 -1.6% / 利確 +2.5% / 大引け手仕舞い`;
+                subBadge.style.color = "#ffd740";
+            } else {
+                subBadge.innerText = `時間軸: ${currentInterval} / 損切 -2.5% / 利確 +6.0%`;
+                subBadge.style.color = "#00e5ff";
             }
-            selectSymbol(currentSymbolCode);
+        }
+
+        const tfButtons = [
+            { id: "tab-btn-60m", interval: "60m" },
+            { id: "tab-btn-30m", interval: "30m" },
+            { id: "tab-btn-15m", interval: "15m" },
+            { id: "tab-btn-5m", interval: "5m" }
+        ];
+
+        tfButtons.forEach(item => {
+            const btn = document.getElementById(item.id);
+            if (!btn) return;
+            btn.addEventListener("click", () => {
+                currentChartMode = "candle";
+                currentInterval = item.interval;
+
+                // ボタンのアクティブスタイル切替
+                document.querySelectorAll(".tf-tab-btn").forEach(b => {
+                    b.className = "btn btn-secondary tf-tab-btn";
+                });
+                btn.className = "btn btn-primary tf-tab-btn active";
+
+                updateSubBadge();
+                renderCurrentChart();
+            });
         });
 
-        btnEquity.addEventListener("click", () => {
-            currentChartMode = "equity";
-            btnEquity.className = "btn btn-primary";
-            btnCandle.className = "btn btn-secondary";
-            if (subBadge) subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
-            chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
-        });
+        const btnEquity = document.getElementById("tab-btn-equity");
+        if (btnEquity) {
+            btnEquity.addEventListener("click", () => {
+                currentChartMode = "equity";
+                document.querySelectorAll(".tf-tab-btn").forEach(b => {
+                    b.className = "btn btn-secondary tf-tab-btn";
+                });
+                btnEquity.className = "btn btn-primary tf-tab-btn active";
+
+                updateSubBadge();
+                chart.renderEquityCurve(dataStore.equityHistory, dataStore.initialCapital);
+            });
+        }
     }
 
     // --- 6. シグナル通知バナー更新 ---
@@ -759,13 +940,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pnl = (currentClose - entryPrice) * posShares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
-            const tpValNum = activePos.takeProfitPrice ? Number(activePos.takeProfitPrice) : (entryPrice * 1.06);
-            const slValNum = activePos.stopLossPrice ? Number(activePos.stopLossPrice) : (entryPrice * 0.975);
+            const tpValNum = activePos.takeProfitPrice ? Number(activePos.takeProfitPrice) : (entryPrice * (isStrategy3 ? 1.025 : 1.06));
+            const slValNum = activePos.stopLossPrice ? Number(activePos.stopLossPrice) : (entryPrice * (isStrategy3 ? 0.984 : 0.975));
             const toTp = tpValNum - currentClose;
             const toSl = currentClose - slValNum;
             const entryTimeStr = String(activePos.entryTime || '-');
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
-            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 10 : 15;
+            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 8 : 15;
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
@@ -805,11 +986,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } else if (latest.isBuySignal) {
             // 買いシグナル点灯中！
-            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * (isStrategy3 ? 1.012 : 1.06)).toFixed(1);
-            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * (isStrategy3 ? 0.994 : 0.975)).toFixed(1);
-            const tpLabel = isStrategy3 ? "利確ライン (+1.2%)" : "利確ライン (+6.0%)";
-            const slLabel = isStrategy3 ? "損切ライン (-0.6%)" : "損切ライン (-2.5%)";
-            const holdLabel = isStrategy3 ? "最大30〜60分 (10バー)" : "3営業日 (15バー)";
+            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * (isStrategy3 ? 1.025 : 1.06)).toFixed(1);
+            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * (isStrategy3 ? 0.984 : 0.975)).toFixed(1);
+            const tpLabel = isStrategy3 ? "利確目標 (+2.5%)" : "利確ライン (+6.0%)";
+            const slLabel = isStrategy3 ? "損切ライン (-1.6%)" : "損切ライン (-2.5%)";
+            const holdLabel = isStrategy3 ? "最大8バー (当日大引け手仕舞い・持ち越しゼロ)" : "3営業日 (15バー)";
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = "var(--accent-green)";
@@ -833,7 +1014,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <div class="sig-metric"><span class="sig-metric-label">推奨株数 (100株単元)</span><span class="sig-metric-value">${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">${tpLabel}</span><span class="sig-metric-value val-green">¥${tpStr}</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">${slLabel}</span><span class="sig-metric-value val-red">¥${slStr}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">2.00 : 1</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">${isStrategy3 ? '1.56 : 1' : '2.40 : 1'}</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">最大保有期間</span><span class="sig-metric-value">${holdLabel}</span></div>
                     </div>
                 </div>

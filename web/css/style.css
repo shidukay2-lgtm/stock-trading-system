@@ -870,4 +870,32 @@ input:checked + .slider:before {
     }
 }
 
+/* --- 時間足タブボタンスタイル --- */
+#timeframe-tab-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.tf-tab-btn {
+    border-radius: var(--radius-sm);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+}
+
+.tf-tab-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 229, 255, 0.2);
+}
+
+.tf-tab-btn.active {
+    background: linear-gradient(135deg, var(--primary), var(--primary-glow)) !important;
+    color: #0b0f19 !important;
+    font-weight: 800 !important;
+    box-shadow: 0 0 14px rgba(0, 229, 255, 0.45) !important;
+    border-color: var(--primary) !important;
+}
+
+
 

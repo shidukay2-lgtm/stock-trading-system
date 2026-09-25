@@ -153,9 +153,12 @@
             <!-- チャートカード (タブ切替対応) -->
             <div class="card">
                 <div class="card-header" style="flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <button class="btn btn-primary" id="tab-btn-candle" style="padding: 5px 12px; font-size: 13px;">📊 1時間足テクニカル</button>
-                        <button class="btn btn-secondary" id="tab-btn-equity" style="padding: 5px 12px; font-size: 13px;">📈 資産推移・複利成長カーブ</button>
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;" id="timeframe-tab-group">
+                        <button class="btn btn-primary tf-tab-btn active" id="tab-btn-60m" data-interval="60m" style="padding: 5px 11px; font-size: 12px; font-weight: 700;">📊 1時間足 (60m)</button>
+                        <button class="btn btn-secondary tf-tab-btn" id="tab-btn-30m" data-interval="30m" style="padding: 5px 11px; font-size: 12px; font-weight: 700;">⏱️ 30分足 (30m)</button>
+                        <button class="btn btn-secondary tf-tab-btn" id="tab-btn-15m" data-interval="15m" style="padding: 5px 11px; font-size: 12px; font-weight: 700;">⏱️ 15分足 (15m)</button>
+                        <button class="btn btn-secondary tf-tab-btn" id="tab-btn-5m" data-interval="5m" style="padding: 5px 11px; font-size: 12px; font-weight: 700;">⚡ 5分足 (5m)</button>
+                        <button class="btn btn-secondary tf-tab-btn" id="tab-btn-equity" style="padding: 5px 11px; font-size: 12px; font-weight: 700;">📈 資産推移・複利カーブ</button>
                         <span class="chip-badge" id="chart-sub-badge" style="background: rgba(0, 229, 255, 0.1); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3);">時間軸: 1h / 損切 -2.5% / 利確 +6%</span>
                     </div>
                     <div id="chart-realtime-hud" style="display: flex; gap: 6px; align-items: center; font-size: 12px; flex-wrap: wrap;">

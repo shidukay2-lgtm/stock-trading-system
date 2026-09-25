@@ -160,6 +160,53 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API 1.5: 複数時間足ローソク足取得 (/api/candles?symbol=4477.T&interval=5m)
+  if (pathname === '/api/candles' && req.method === 'GET') {
+    const symbol = parsedUrl.searchParams.get('symbol') || '4477.T';
+    const interval = parsedUrl.searchParams.get('interval') || '60m';
+    
+    // Python の data_fetcher を呼び出して指定時間足のデータを取得
+    const pyScript = path.join(__dirname, 'core', 'data_fetcher.py');
+    const pyInline = `
+import sys, json
+sys.path.insert(0, r"${__dirname.replace(/\\/g, '/')}")
+from core.data_fetcher import StockDataFetcher
+fetcher = StockDataFetcher(use_cache=True)
+df = fetcher.fetch_ohlcv("${symbol}", interval="${interval}", target_candles=200, show_cool_ui=False)
+candles = []
+if df is not None and not df.empty:
+    for i in range(len(df)):
+        ts = df.index[i]
+        ts_str = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, "strftime") else str(ts)[:16]
+        candles.append({
+            "time": ts_str,
+            "open": round(float(df["Open"].iloc[i]), 1),
+            "high": round(float(df["High"].iloc[i]), 1),
+            "low": round(float(df["Low"].iloc[i]), 1),
+            "close": round(float(df["Close"].iloc[i]), 1),
+            "volume": int(df["Volume"].iloc[i])
+        })
+print(json.dumps({"success": True, "symbol": "${symbol}", "interval": "${interval}", "candles": candles}))
+`;
+
+    const pyProcess = spawn(PYTHON_CMD, ['-c', pyInline]);
+    let output = '';
+    pyProcess.stdout.on('data', data => { output += data.toString(); });
+    pyProcess.on('error', (err) => {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: err.message, candles: [] }));
+    });
+    pyProcess.on('close', (code) => {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      if (code === 0 && output) {
+        res.end(output.trim());
+      } else {
+        res.end(JSON.stringify({ success: false, code, candles: [] }));
+      }
+    });
+    return;
+  }
+
   // API 2: 今すぐ手動更新トリガー (/api/refresh-now または /api/refresh-data)
   if ((pathname === '/api/refresh-now' || pathname === '/api/refresh-data') && req.method === 'POST') {
     console.log('[API] 手動更新リクエストを受信しました');
