@@ -497,16 +497,60 @@ class TradingChart {
             });
         }
 
+        // ズーム表示基準: 直近のローソク足にフォーカス (PC: 36本, スマホ: 22本)
+        const defaultVisibleBars = window.innerWidth < 768 ? 22 : 36;
+        const startIdx = Math.max(0, times.length - defaultVisibleBars);
+        const xStart = times[startIdx];
+        const xEnd = times[times.length - 1];
+
+        // 外部凡例バーの動的更新（チャート内の邪魔な被りを完全解消）
+        const legendContainer = document.getElementById("legend-items");
+        if (legendContainer) {
+            let legendHtml = `
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:10px; height:10px; background:#00e676; border-radius:2px;"></span><span style="color:var(--text-muted);">株価 OHLC</span></span>
+            `;
+            if (isStrategy3) {
+                legendHtml += `
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">短期VWAP</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:1.5px; background:#ff80ab; border-radius:2px;"></span><span style="color:#ff80ab;">EMA 50</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#4a5568; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配比率</span></span>
+                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#ffd740; font-size:12px;">▲</span><span style="color:#ffd740; font-weight:700;">BUYシグナル</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(9)</span></span>
+                `;
+            } else if (isStrategy2) {
+                legendHtml += `
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">VWAP</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 20</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 50</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#00e676; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配</span></span>
+                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#00e676; font-size:12px;">▲</span><span style="color:#00e676; font-weight:700;">BUYシグナル</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(14)</span></span>
+                `;
+            } else {
+                legendHtml += `
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#00e676; border-radius:1px;"></span><span style="color:var(--text-muted);">MACD Hist</span></span>
+                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#00e676; font-size:12px;">▲</span><span style="color:#00e676; font-weight:700;">BUYシグナル</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(14)</span></span>
+                `;
+            }
+            legendContainer.innerHTML = legendHtml;
+        }
+
         const layout = {
             template: "plotly_dark",
             paper_bgcolor: "#0b0f19",
             plot_bgcolor: "#111827",
-            margin: { l: 45, r: 160, t: 30, b: 35 },
+            margin: { l: 45, r: 155, t: 15, b: 35 },
             height: window.innerWidth < 768 ? 480 : 580,
-            showlegend: window.innerWidth >= 768,
-            legend: { orientation: "h", y: 1.05, x: 1, xanchor: "right" },
+            showlegend: false, // チャート内の凡例ボックスを非表示化しクリアな視認性を確保
+            dragmode: "pan",   // ドラッグで直感的にチャートを左右・上下に移動 (Pan) 可能に！
             hovermode: "x unified",
             xaxis: {
+                range: [xStart, xEnd], // 初期ズーム基準: 直近のローソク足に最適フォーカス！
                 rangeslider: { visible: false },
                 gridcolor: "#1f293d",
                 domain: [0, 1]
@@ -534,8 +578,11 @@ class TradingChart {
 
         const config = {
             responsive: true,
-            displayModeBar: false,
-            scrollZoom: true
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+            displaylogo: false,
+            scrollZoom: true,   // ホイールスクロールやピンチでスムーズ拡大縮小
+            doubleClick: 'reset' // ダブルクリックで直近足基準の最適ズームにリセット
         };
 
         // Plotly.react を使用してチラつきなく即座に最新レート・インジケーターを再描画
@@ -611,14 +658,23 @@ class TradingChart {
             }
         ];
 
+        // 外部凡例バーを資産推移用に更新
+        const legendContainer = document.getElementById("legend-items");
+        if (legendContainer) {
+            legendContainer.innerHTML = `
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:3px; background:${mainColor}; border-radius:2px;"></span><span style="color:${mainColor}; font-weight:700;">総資産 (運用残高)</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:rgba(255,255,255,0.4);"></span><span style="color:var(--text-muted);">初期元本ライン (¥${initialCapital.toLocaleString()})</span></span>
+            `;
+        }
+
         const layout = {
             template: "plotly_dark",
             paper_bgcolor: "#0b0f19",
             plot_bgcolor: "#111827",
-            margin: { l: 60, r: 80, t: 40, b: 40 },
+            margin: { l: 60, r: 80, t: 25, b: 40 },
             height: window.innerWidth < 768 ? 480 : 580,
-            showlegend: true,
-            legend: { orientation: "h", y: 1.05, x: 1, xanchor: "right" },
+            showlegend: false,
+            dragmode: "pan",
             hovermode: "x unified",
             xaxis: {
                 gridcolor: "#1f293d",
@@ -634,8 +690,11 @@ class TradingChart {
 
         const config = {
             responsive: true,
-            displayModeBar: false,
-            scrollZoom: true
+            displayModeBar: true,
+            modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+            displaylogo: false,
+            scrollZoom: true,
+            doubleClick: 'reset'
         };
 
         Plotly.react(this.containerId, traces, layout, config);
