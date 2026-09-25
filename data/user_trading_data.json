@@ -1,52 +1,82 @@
 {
   "account": {
     "initialCapital": 300000,
-    "cash": 134500,
+    "cash": 299700,
     "compoundingEnabled": true,
     "maxAllocationPct": 0.4,
-    "updatedAt": "2026-09-24T23:04:45.946Z"
+    "updatedAt": "2026-09-25T00:38:59.245Z"
   },
-  "positions": [
+  "positions": [],
+  "trades": [
     {
-      "symbol": "7383.T",
-      "symbolName": "ネットプロHD",
-      "entryTime": "2026-09-24 15:00",
-      "entryPrice": 396,
-      "shares": 200,
-      "investmentAmount": 79200,
-      "stopLossPrice": 393.624,
-      "takeProfitPrice": 400.752,
-      "strategyName": "HighWin_MTF_Scalping_Breakout",
-      "strategyDisplayName": "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: 高速デイトレ] (200株 (100株単元・複利運用))"
+      "trade_id": "REAL-MUG8GCYP",
+      "symbol": "5246.T",
+      "symbol_name": "ELEMENTS",
+      "strategy_name": "HighWin_MTF_Scalping_Breakout",
+      "entry_time": "2026-09-25 09:08:39",
+      "exit_time": "2026-09-25 09:38:59",
+      "entry_price": 863,
+      "exit_price": 860,
+      "shares": 100,
+      "investment_amount": 86300,
+      "pnl_amount": -300,
+      "pnl_pct": -0.35,
+      "holding_bars": 1,
+      "holding_days": 0.2,
+      "exit_reason": "TIMEOUT",
+      "notes": "⌛ スキャルピング保有期限満了決済 (30分経過: ¥860)",
+      "tags": "#AUTO #TIMEOUT #HighWin_MTF_Scalping_Breakout"
     },
     {
-      "symbol": "5246.T",
-      "symbolName": "ELEMENTS",
-      "entryTime": "2026-09-24 15:00",
-      "entryPrice": 863,
-      "shares": 100,
-      "investmentAmount": 86300,
-      "stopLossPrice": 857.822,
-      "takeProfitPrice": 873.356,
-      "strategyName": "HighWin_MTF_Scalping_Breakout",
-      "strategyDisplayName": "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
-      "holdingBars": 1,
-      "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: 高速デイトレ] (100株 (100株単元・複利運用))"
+      "trade_id": "REAL-MUG8GCS2",
+      "symbol": "7383.T",
+      "symbol_name": "ネットプロHD",
+      "strategy_name": "HighWin_MTF_Scalping_Breakout",
+      "entry_time": "2026-09-25 09:08:38",
+      "exit_time": "2026-09-25 09:38:58",
+      "entry_price": 396,
+      "exit_price": 396,
+      "shares": 200,
+      "investment_amount": 79200,
+      "pnl_amount": 0,
+      "pnl_pct": 0,
+      "holding_bars": 1,
+      "holding_days": 0.2,
+      "exit_reason": "TIMEOUT",
+      "notes": "⌛ スキャルピング保有期限満了決済 (30分経過: ¥396)",
+      "tags": "#AUTO #TIMEOUT #HighWin_MTF_Scalping_Breakout"
     }
   ],
-  "trades": [],
   "equityHistory": [
     {
-      "time": "2026-09-25 08:04:00",
+      "time": "2026-09-25 08:33",
       "equity": 300000,
       "cash": 300000,
       "positionsValue": 0,
       "realizedPnl": 0,
       "unrealizedPnl": 0,
       "returnPct": 0,
-      "note": "初期元本設定 (デイトレ持ち越しクリア)"
+      "note": "データリセット (元本 ¥300,000)"
+    },
+    {
+      "time": "2026-09-25 09:38:58",
+      "equity": 300000,
+      "cash": 213700,
+      "positionsValue": 0,
+      "realizedPnl": 0,
+      "unrealizedPnl": 0,
+      "returnPct": 0,
+      "note": "ネットプロHD 決済: +¥0 (TIMEOUT)"
+    },
+    {
+      "time": "2026-09-25 09:38:59",
+      "equity": 299700,
+      "cash": 299700,
+      "positionsValue": 0,
+      "realizedPnl": -300,
+      "unrealizedPnl": 0,
+      "returnPct": -0.1,
+      "note": "ELEMENTS 決済: ¥-300 (TIMEOUT)"
     }
   ]
 }

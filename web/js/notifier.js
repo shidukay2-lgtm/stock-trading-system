@@ -352,9 +352,29 @@ class NotificationManager {
         const isTP = trade.exit_reason === "TAKE_PROFIT";
         const isSL = trade.exit_reason === "STOP_LOSS";
 
+        const getJst = window.getNowJSTString || function() {
+            try {
+                const formatter = new Intl.DateTimeFormat('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false
+                });
+                const parts = formatter.formatToParts(new Date());
+                const m = {};
+                parts.forEach(p => m[p.type] = p.value);
+                return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
+            } catch (e) {
+                return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+            }
+        };
+
+        // 決済時刻（JSTを最優先で取得）
+        const exitTimeJst = trade.exit_time && !trade.exit_time.startsWith("0") ? trade.exit_time : getJst(true);
+
         let eventEmoji = isTP ? "🎯 【利食い達成】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限決済】");
         const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
-        const body = `決済日時: ${trade.exit_time || 'たった今'}\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
+        const body = `決済日時: ${exitTimeJst}\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
 
         // 1. ブラウザ通知
         this.sendBrowserNotification(title, body, `exit-${trade.symbol}`);
@@ -370,7 +390,7 @@ class NotificationManager {
                     { name: "実現損益額", value: `${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)`, inline: true },
                     { name: "買値 ➔ 決済値", value: `¥${Number(trade.entry_price).toLocaleString()} ➔ ¥${Number(trade.exit_price).toLocaleString()}`, inline: true },
                     { name: "保有株数", value: `${trade.shares}株`, inline: true },
-                    { name: "決済日時 (JST)", value: `${trade.exit_time}`, inline: true }
+                    { name: "決済日時 (JST)", value: `${exitTimeJst}`, inline: true }
                 ],
                 isWin ? 0x00FF88 : 0xFF5252
             );

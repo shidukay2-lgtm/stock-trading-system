@@ -318,38 +318,36 @@ class HighWinOrderBookVWAPPullbackStrategy(BaseStrategy):
 # =====================================================================
 class HighWinMTFScalpingStrategy(BaseStrategy):
     """
-    【戦略3】マルチタイムフレーム高速スキャル・デイトレ戦略
+    【戦略3】マルチタイムフレーム大口VWAP反発・板気配急増 高勝率デイトレ戦略
     
     【設計思想】
-    1時間以内に数回のトレード（高速利確・微損撤退）を行える高回転戦略。
-    - 上位足（日足/1h足）: 大局上昇トレンド（EMA20 > EMA50 または VWAP上）を確認
-    - 下位足（5分足/1分足）: 短期VWAPタッチ押し目反発 ＋ 板気配インバランス（買い板1.3倍以上） ＋ 直近高値ブレイク
-    - 利確: +1.2%〜+1.5% (数分〜15分で素早く利食い)
-    - 損切: -0.6%〜-0.7% (サポート割れで即座に微損撤退、リスクリワード比 2.0:1)
-    - 最大保有: 6〜12バー (30分〜60分以内で強制決済)
+    - 上位足（日足/1h足）: 大局上昇トレンド（EMA10 >= EMA25 >= EMA50 または VWAP上推移）
+    - 下位足トリガー: VWAP/EMA10支持線タッチ後の下ヒゲ/陽線反発 ＋ 買い板インバランス（1.25倍以上） ＋ RSI(9) 42〜58
+    - エグジット: 利確 +2.5%, 損切 -1.6% (ノイズを回避しサポート割れで確実に撤退, RR比 1.56:1)
+    - 最大保有: 8バー (当日大引け手仕舞い・持ち越しゼロ)
     """
 
     def __init__(self, params: Dict[str, Any] = None):
         default_params = {
-            "stop_loss_pct": 0.006,       # 損切り: -0.6% (タイトな損切り)
-            "take_profit_pct": 0.012,     # 利確: +1.2% (RR比 2.00:1)
-            "max_holding_bars": 10,       # 最大10バー (約30分〜60分以内)
-            "rsi_min": 45.0,
-            "rsi_max": 65.0,
-            "ema_fast": 9,
-            "ema_mid": 20,
+            "stop_loss_pct": 0.016,       # 損切り: -1.6% (通常ノイズを吸収しサポートライン割れで撤退)
+            "take_profit_pct": 0.025,     # 利確: +2.5% (デイトレ高確度利食い)
+            "max_holding_bars": 8,        # 最大8バー (当日中・大引け手仕舞い完結)
+            "rsi_min": 42.0,
+            "rsi_max": 58.0,
+            "ema_fast": 10,
+            "ema_mid": 25,
             "ema_slow": 50,
-            "imbalance_threshold": 1.30,  # 買い気配1.30倍以上
-            "breakout_lookback": 6        # 直近6バー高値ブレイク
+            "vol_surge": 1.25,
+            "imbalance_threshold": 1.25   # 買い気配1.25倍以上
         }
         if params:
             default_params.update(params)
         super().__init__(name="HighWin_MTF_Scalping_Breakout", params=default_params)
-        self.description = "【戦略3】上位足トレンド × 下位足短期VWAP反発・板気配急増 高速スキャル戦略"
+        self.description = "【戦略3】日足強気 × 下位足VWAP大口反発・板気配インバランス 高勝率デイトレ戦略"
         self.rationale = (
-            "大局上昇トレンド中、下位足で短期VWAP支持線またはEMA9にタッチして反発し、"
-            "板の買い気配インバランスが1.3倍以上に急増した瞬間を捉えて素早くエントリー。"
-            "利確+1.2%/損切-0.6%のタイトな設計により、1時間以内に完結する高回転トレードを実現。"
+            "大局上昇トレンド中、下位足で短期VWAP支持線またはEMA10にタッチして下ヒゲ/陽線反発し、"
+            "板の買い気配インバランスが1.25倍以上に急増した瞬間を捉えてエントリー。"
+            "利確+2.5%/損切-1.6%の適正なリスクリワードと当日中大引け手仕舞いにより、安定した高勝率デイトレを実現。"
         )
 
     def generate_signals(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -362,11 +360,11 @@ class HighWinMTFScalpingStrategy(BaseStrategy):
         df["Cum_TP_Vol"] = (tp * df["Volume"]).cumsum()
         df["VWAP"] = (df["Cum_TP_Vol"] / df["Cum_Vol"].replace(0, np.nan)).ffill()
 
-        df["EMA9"] = self.calculate_ema(df["Close"], p["ema_fast"])
-        df["EMA20"] = self.calculate_ema(df["Close"], p["ema_mid"])
+        df["EMA10"] = self.calculate_ema(df["Close"], p["ema_fast"])
+        df["EMA25"] = self.calculate_ema(df["Close"], p["ema_mid"])
         df["EMA50"] = self.calculate_ema(df["Close"], p["ema_slow"])
         df["RSI"] = self.calculate_rsi(df["Close"], period=9) # 短期RSI
-        df["Recent_High"] = df["High"].rolling(window=p["breakout_lookback"]).max().shift(1)
+        df["Vol_MA20"] = df["Volume"].rolling(window=20).mean()
 
         # 板気配・出来高インバランス推計
         range_hl = (df["High"] - df["Low"]).replace(0, 0.001)
@@ -376,20 +374,18 @@ class HighWinMTFScalpingStrategy(BaseStrategy):
 
         df["signal"] = 0
 
-        # (1) 上位足・大局トレンド (EMA20 >= EMA50 または VWAP上)
-        cond_trend = (df["EMA20"] >= df["EMA50"] * 0.997) | (df["Close"] >= df["VWAP"])
-        # (2) 短期押し目反発 (EMA9またはVWAPタッチ反発) または 直近高値ブレイク
-        cond_pullback = (df["Low"] <= df["EMA9"] * 1.006) & (df["Close"] >= df["EMA9"] * 0.996)
-        cond_breakout = df["Close"] >= df["Recent_High"] * 0.999
-        cond_trigger = cond_pullback | cond_breakout
-        # (3) 陽線反発
-        cond_candle = (df["Close"] >= df["Open"]) | ((df["Close"] - df["Low"]) > (df["High"] - df["Close"]))
-        # (4) 板気配インバランス急増 (1.3倍以上)
-        cond_orderbook = df["Bid_Ask_Ratio_Est"] >= p["imbalance_threshold"]
-        # (5) 短期RSIモメンタム (45〜65)
+        # (1) 上位足・大局トレンド (EMA10 >= EMA25 または VWAP上)
+        cond_trend = (df["EMA10"] >= df["EMA25"] * 0.998) & (df["Close"] >= df["VWAP"] * 0.996)
+        # (2) 短期押し目反発 (EMA10またはVWAPタッチ反発)
+        cond_support = (df["Low"] <= df["EMA10"] * 1.008) | (df["Low"] <= df["VWAP"] * 1.008)
+        # (3) 陽線または下ヒゲ反発
+        cond_reversal = (df["Close"] >= df["Open"]) | ((df["Close"] - df["Low"]) > (df["High"] - df["Close"]) * 1.1)
+        # (4) 板気配インバランス急増 (1.25倍以上) & 出来高
+        cond_vol = (df["Volume"] >= df["Vol_MA20"] * p["vol_surge"]) | (df["Bid_Ask_Ratio_Est"] >= p["imbalance_threshold"])
+        # (5) 短期RSIモメンタム (42〜58)
         cond_rsi = (df["RSI"] >= p["rsi_min"]) & (df["RSI"] <= p["rsi_max"])
 
-        df.loc[cond_trend & cond_trigger & cond_candle & cond_orderbook & cond_rsi, "signal"] = 1
+        df.loc[cond_trend & cond_support & cond_reversal & cond_vol & cond_rsi, "signal"] = 1
         return df
 
     def get_strategy_info(self) -> Dict[str, Any]:
@@ -401,6 +397,7 @@ class HighWinMTFScalpingStrategy(BaseStrategy):
             "risk_reward_target": f"1 : {self.params['take_profit_pct'] / self.params['stop_loss_pct']:.2f}",
             "stop_loss": f"-{self.params['stop_loss_pct']*100:.1f}%",
             "take_profit": f"+{self.params['take_profit_pct']*100:.1f}%",
-            "max_holding_period": f"{self.params['max_holding_bars']} バー (約30〜60分以内)"
+            "max_holding_period": f"{self.params['max_holding_bars']} バー (当日大引け手仕舞い)"
         }
+
 

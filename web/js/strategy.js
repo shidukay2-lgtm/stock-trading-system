@@ -343,26 +343,24 @@ class OrderBookVWAPPullbackStrategy {
 }
 
 /**
- * 【戦略3】マルチタイムフレーム高速スキャル・デイトレ戦略 (MTFScalpingStrategy)
- * 1時間以内に数回のトレード（高速利確・微損撤退）を行える高回転戦略
- * - 上位足大局トレンド × 下位足短期VWAP反発・直近高値ブレイク ＋ 板気配インバランス1.30倍
- * - 利確: +1.2%, 損切: -0.6%, 最大保有: 10バー (約30分〜60分以内)
+ * 【戦略3】マルチタイムフレーム大口VWAP反発・板気配急増 高勝率デイトレ戦略 (MTFScalpingStrategy)
+ * - 上位足大局トレンド × 下位足短期VWAP反発・大陽線 ＋ 買い板気配インバランス1.25倍
+ * - 利確: +2.5%, 損切: -1.6%, 最大保有: 8バー (当日大引け手仕舞い・持ち越しゼロ)
  */
 class MTFScalpingStrategy {
     constructor(params = {}) {
         this.params = Object.assign({
-            stopLossPct: 0.006,        // 損切り: -0.6%
-            takeProfitPct: 0.012,      // 利確: +1.2% (RR比 2.00:1)
-            maxHoldingBars: 10,        // 最大保有: 10バー (30〜60分)
+            stopLossPct: 0.016,        // 損切り: -1.6% (通常ノイズを吸収しサポートライン割れで撤退)
+            takeProfitPct: 0.025,      // 利確: +2.5% (デイトレ高確度利食い)
+            maxHoldingBars: 8,         // 最大保有: 8バー (当日大引け手仕舞い・持ち越しゼロ)
             maxBudget: 100000.0,       // 1回の投資上限: 10万円
             rsiPeriod: 9,
-            rsiMin: 45.0,
-            rsiMax: 65.0,
-            emaFast: 9,
-            emaMid: 20,
+            rsiMin: 42.0,
+            rsiMax: 58.0,
+            emaFast: 10,
+            emaMid: 25,
             emaSlow: 50,
-            imbalanceThreshold: 1.30,
-            breakoutLookback: 6
+            imbalanceThreshold: 1.25
         }, params);
     }
 
@@ -427,8 +425,8 @@ class MTFScalpingStrategy {
         const highPrices = candles.map(c => Number(c.high));
         const lowPrices = candles.map(c => Number(c.low));
 
-        const ema9 = this.calculateEMA(closePrices, this.params.emaFast);
-        const ema20 = this.calculateEMA(closePrices, this.params.emaMid);
+        const ema10 = this.calculateEMA(closePrices, this.params.emaFast);
+        const ema25 = this.calculateEMA(closePrices, this.params.emaMid);
         const ema50 = this.calculateEMA(closePrices, this.params.emaSlow);
         const rsi = this.calculateRSI(closePrices, this.params.rsiPeriod);
         const vwap = this.calculateVWAP(candles);
@@ -439,29 +437,21 @@ class MTFScalpingStrategy {
             const currentLow = Number(c.low);
             const currentHigh = Number(c.high);
 
-            // 直近6バー高値
-            let recentHigh = currentHigh;
-            if (i >= this.params.breakoutLookback) {
-                recentHigh = Math.max(...highPrices.slice(i - this.params.breakoutLookback, i));
-            }
-
             // 板気配インバランス比率
-            const bidAskRatio = c.bid_ask_imbalance !== undefined ? Number(c.bid_ask_imbalance) : (c.bidAskRatio !== undefined ? Number(c.bidAskRatio) : 1.35);
+            const bidAskRatio = c.bid_ask_imbalance !== undefined ? Number(c.bid_ask_imbalance) : (c.bidAskRatio !== undefined ? Number(c.bidAskRatio) : 1.30);
 
-            // (1) 大局トレンド (EMA20 >= EMA50 または VWAP上)
-            const isTrendBullish = (ema20[i] >= ema50[i] * 0.997) || (currentClose >= vwap[i]);
-            // (2) 短期押し目タッチ反発 (EMA9またはVWAP) または 直近高値ブレイク
-            const isPullback = (currentLow <= ema9[i] * 1.006) && (currentClose >= ema9[i] * 0.996);
-            const isBreakout = currentClose >= recentHigh * 0.999;
-            const isTrigger = isPullback || isBreakout;
-            // (3) 陽線反発
-            const isCandleValid = (currentClose >= currentOpen) || ((currentClose - currentLow) > (currentHigh - currentClose));
+            // (1) 大局トレンド (EMA10 >= EMA25 または VWAP上)
+            const isTrendBullish = (ema10[i] >= ema25[i] * 0.998) && (currentClose >= vwap[i] * 0.996);
+            // (2) 短期押し目タッチ反発 (EMA10またはVWAP支持線)
+            const isSupportTouch = (currentLow <= ema10[i] * 1.008) || (currentLow <= vwap[i] * 1.008);
+            // (3) 陽線または下ヒゲ反発
+            const isCandleValid = (currentClose >= currentOpen) || ((currentClose - currentLow) > (currentHigh - currentClose) * 1.1);
             // (4) 板気配インバランス急増
             const isOrderBookValid = bidAskRatio >= this.params.imbalanceThreshold;
-            // (5) RSI健全圏
+            // (5) RSI健全圏 (42〜58)
             const isRsiValid = rsi[i] !== null && rsi[i] >= this.params.rsiMin && rsi[i] <= this.params.rsiMax;
 
-            const isBuySignal = isTrendBullish && isTrigger && isCandleValid && isOrderBookValid && isRsiValid;
+            const isBuySignal = isTrendBullish && isSupportTouch && isCandleValid && isOrderBookValid && isRsiValid;
 
             return {
                 time: c.time,
@@ -471,11 +461,10 @@ class MTFScalpingStrategy {
                 close: currentClose,
                 volume: Number(c.volume) || 0,
                 vwap: vwap[i],
-                ema9: ema9[i],
-                ema20: ema20[i],
+                ema10: ema10[i],
+                ema25: ema25[i],
                 ema50: ema50[i],
                 rsi: rsi[i],
-                recentHigh: recentHigh,
                 bidAskRatio: bidAskRatio,
                 isBuySignal: isBuySignal,
                 stopLossPrice: currentClose * (1 - this.params.stopLossPct),
@@ -555,10 +544,10 @@ class StrategyRegistry {
             "mtf_scalping": {
                 id: "mtf_scalping",
                 name: "HighWin_MTF_Scalping_Breakout",
-                displayName: "【戦略3】MTF高速スキャル・デイトレ (1時間以内完結)",
-                shortName: "戦略3: 高速デイトレ",
+                displayName: "【戦略3】MTF大口VWAP反発・板気配急増 高勝率デイトレ",
+                shortName: "戦略3: 高勝率デイトレ",
                 badgeColor: "#ffd740",
-                description: "上位足トレンド × 下位足短期VWAP反発・直近高値ブレイクによる1時間以内高回転デイトレ戦略 (利確+1.2% / 損切-0.6% / 最大30〜60分)",
+                description: "上位足強気トレンド × 短期VWAP大口反発・板気配インバランスによる高勝率デイトレ戦略 (利確+2.5% / 損切-1.6% / 当日大引け手仕舞い・持ち越しゼロ)",
                 enabled: true,
                 instance: new MTFScalpingStrategy()
             }

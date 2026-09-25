@@ -124,20 +124,20 @@ def run_market_screening(max_display_symbols=8):
             report2 = engine2.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
             m2 = report2.metrics
 
-            # 戦略3 (MTF_Scalping_Breakout: 高速スキャル・デイトレ) 評価
+            # 戦略3 (MTF_Scalping_Breakout: 高勝率デイトレ) 評価
             custom_settings_scalp = TradingSettings(
                 INITIAL_CAPITAL=300000.0,
                 MAX_POSITION_AMOUNT=100000.0,
                 DEFAULT_LOT_SIZE=100,
                 ALLOW_ODD_LOTS=False,
                 MAX_HOLDING_DAYS=1,
-                MAX_HOLDING_BARS=10,
-                STOP_LOSS_PCT=0.006,
-                TAKE_PROFIT_PCT=0.012
+                MAX_HOLDING_BARS=8,
+                STOP_LOSS_PCT=0.016,
+                TAKE_PROFIT_PCT=0.025
             )
             strategy3 = HighWinMTFScalpingStrategy({
-                "stop_loss_pct": 0.006, "take_profit_pct": 0.012, "max_holding_bars": 10,
-                "rsi_min": 45.0, "rsi_max": 65.0, "imbalance_threshold": 1.30
+                "stop_loss_pct": 0.016, "take_profit_pct": 0.025, "max_holding_bars": 8,
+                "rsi_min": 42.0, "rsi_max": 58.0, "vol_surge": 1.25, "imbalance_threshold": 1.25
             })
             engine3 = BacktestEngine(strategy=strategy3, settings=custom_settings_scalp)
             report3 = engine3.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)

@@ -5,19 +5,32 @@
  */
 
 /**
- * 日本時間 (JST: UTC+9) の現在日時文字列 (YYYY-MM-DD HH:mm:ss または HH:mm) を生成する共通ヘルパー
+ * 日本時間 (JST: Asia/Tokyo, UTC+9) の現在日時文字列を生成する共通ヘルパー
  */
 function getNowJSTString(includeSeconds = true) {
-    const now = new Date();
-    // JST = UTC+9
-    const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-    const y = jstDate.getUTCFullYear();
-    const m = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(jstDate.getUTCDate()).padStart(2, '0');
-    const h = String(jstDate.getUTCHours()).padStart(2, '0');
-    const min = String(jstDate.getUTCMinutes()).padStart(2, '0');
-    const sec = String(jstDate.getUTCSeconds()).padStart(2, '0');
-    return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
+    try {
+        const formatter = new Intl.DateTimeFormat('ja-JP', {
+            timeZone: 'Asia/Tokyo',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        });
+        const parts = formatter.formatToParts(new Date());
+        const m = {};
+        parts.forEach(p => m[p.type] = p.value);
+        const dateStr = `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}`;
+        return includeSeconds ? `${dateStr}:${m.second}` : dateStr;
+    } catch (e) {
+        const now = new Date();
+        const jstDate = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+        const y = jstDate.getUTCFullYear();
+        const mo = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(jstDate.getUTCDate()).padStart(2, '0');
+        const h = String(jstDate.getUTCHours()).padStart(2, '0');
+        const min = String(jstDate.getUTCMinutes()).padStart(2, '0');
+        const sec = String(jstDate.getUTCSeconds()).padStart(2, '0');
+        return includeSeconds ? `${y}-${mo}-${d} ${h}:${min}:${sec}` : `${y}-${mo}-${d} ${h}:${min}`;
+    }
 }
 window.getNowJSTString = getNowJSTString;
 
