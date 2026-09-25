@@ -77,8 +77,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const todayDateStr = nowJstStr.substring(0, 10); // YYYY-MM-DD
         const currentHour = parseInt(nowJstStr.substring(11, 13), 10);
         const currentMin = parseInt(nowJstStr.substring(14, 16), 10);
-        // 大引け時間帯判定 (平日14:50〜15:00 または 15:00以降の市場終了時)
-        const isMarketCloseTime = (currentHour === 14 && currentMin >= 50) || (currentHour >= 15);
+        const isMarketOpen = symbolsData.market_status ? Boolean(symbolsData.market_status.is_open) : false;
+        // 開場中の大引け時間帯判定 (平日14:50〜15:30)
+        const isMarketCloseTime = isMarketOpen && ((currentHour === 14 && currentMin >= 50) || currentHour === 15);
 
         // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了 / 持ち越し防止 / 大引け手仕舞い)
         const currentPositions = [...dataStore.positions];
@@ -91,15 +92,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             const currentHigh = Number(latest.high) || currentClose;
             const currentLow = Number(latest.low) || currentClose;
 
-            // 保有バー数の更新
-            let barsCount = 0;
+            // 保有バー数の正確な算出 (エントリー日時以降の新しいローソク足のみをカウント)
+            let barsCount = 1;
             const entryPrefix = String(pos.entryTime || "").substring(0, 16);
+            let matchedIdx = -1;
             for (let i = 0; i < sym.candles.length; i++) {
-                if (sym.candles[i].time >= entryPrefix || sym.candles[i].time.substring(0, 10) >= pos.entryTime.substring(0, 10)) {
-                    barsCount++;
+                if (sym.candles[i].time >= entryPrefix) {
+                    matchedIdx = i;
+                    break;
                 }
             }
-            pos.holdingBars = Math.max(1, barsCount);
+            if (matchedIdx >= 0) {
+                barsCount = Math.max(1, sym.candles.length - matchedIdx);
+            }
+            pos.holdingBars = barsCount;
 
             const isScalpPos = (pos.strategyName && (pos.strategyName.includes("Scalping") || pos.strategyName.includes("mtf_scalping")));
             const entryDateStr = String(pos.entryTime || "").substring(0, 10);
@@ -122,35 +128,36 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             // --- 決済条件判定 (デイトレ・高速スキャルピング厳格ルール) ---
             // (A) 【重要】デイトレ日跨ぎ持ち越し防止の強制成行決済 (前日エントリーの持ち越しを即時排除)
-            if (isScalpPos && isOvernight) {
+            if (isScalpPos && isOvernight && isMarketOpen) {
                 exitPrice = currentClose;
                 exitReason = "DAY_OVER_TIMEOUT";
                 exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
             }
-            // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50以降または市場終了後の即時全手仕舞い)
+            // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50〜15:30の大引け時に全手仕舞い)
             else if (isScalpPos && isMarketCloseTime) {
                 exitPrice = currentClose;
                 exitReason = "MARKET_CLOSE";
                 exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
             }
-            // (C) 利確判定 (目標価格到達: 戦略3は+1.2%, 他は+6.0%)
+            // (C) 利確判定 (目標価格到達: 戦略3は+2.5%, 他は+6.0%)
+            // ※エントリー足（barsCount === 1）では現在値(currentClose)で判定
             else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
                 exitPrice = Math.max(pos.takeProfitPrice, currentClose);
                 exitReason = "TAKE_PROFIT";
-                exitNote = isScalpPos ? `🎯 高速利食い約定 (+1.2%達成: ¥${exitPrice.toLocaleString()})` : `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
+                exitNote = isScalpPos ? `🎯 高速利食い約定 (+2.5%達成: ¥${exitPrice.toLocaleString()})` : `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
             }
-            // (D) 損切判定 (損切りライン到達: 戦略3は-0.6%, 他は-2.5%)
-            // ※同一足ではリアルタイム現在値(currentClose)で判定し、過去安値による誤爆を防止
+            // (D) 損切判定 (損切りライン到達: 戦略3は-1.6%, 他は-2.5%)
+            // ※エントリー足（barsCount === 1）ではリアルタイム現在値(currentClose)のみで判定し、過去の下ヒゲ最安値(currentLow)による即座の損切り誤爆を完全に防止
             else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
                 exitPrice = Math.min(pos.stopLossPrice, currentClose);
                 exitReason = "STOP_LOSS";
-                exitNote = isScalpPos ? `🛑 高速損切り約定 (-0.6%到達: ¥${exitPrice.toLocaleString()})` : `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
+                exitNote = isScalpPos ? `🛑 高速損切り約定 (-1.6%到達: ¥${exitPrice.toLocaleString()})` : `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
             }
-            // (E) スキャルピング保有時間満了 (実時間30分〜60分経過、または10バー経過)
-            else if (isScalpPos && (elapsedMinutes >= 30 || pos.holdingBars >= 10)) {
+            // (E) スキャルピング保有時間満了 (最大8バー経過、または実時間経過)
+            else if (isScalpPos && (pos.holdingBars >= 8 || elapsedMinutes >= 360)) {
                 exitPrice = currentClose;
                 exitReason = "TIMEOUT";
-                exitNote = `⌛ スキャルピング保有期限満了決済 (${elapsedMinutes > 0 ? elapsedMinutes + '分' : pos.holdingBars + 'バー'}経過: ¥${exitPrice.toLocaleString()})`;
+                exitNote = `⌛ デイトレ保有期限満了決済 (当日8バー経過: ¥${exitPrice.toLocaleString()})`;
             }
             // (F) スイング戦略の通常期限満了 (15バー経過)
             else if (!isScalpPos && pos.holdingBars >= 15) {
@@ -273,19 +280,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (selectEl) {
             selectEl.value = strategyRegistry.activeStrategyId;
-            selectEl.addEventListener("change", (e) => {
+            selectEl.addEventListener("change", async (e) => {
                 const stratId = e.target.value;
                 strategyRegistry.setActiveStrategy(stratId);
                 const meta = strategyRegistry.getActiveStrategyMeta();
                 if (descEl) descEl.innerText = meta.description;
                 console.log(`[Strategy] チャート表示戦略切替: ${meta.displayName} (${stratId})`);
-                renderAllUI();
+                await renderAllUI();
             });
         }
 
         // 戦略個別監視ON/OFFボタン
         const toggleButtons = [
-            { btnId: "btn-toggle-strat-mtf", stratId: "mtf_scalping", name: "戦略3 (高速デイトレ)", color: "#ffd740" },
+            { btnId: "btn-toggle-strat-mtf", stratId: "mtf_scalping", name: "戦略3 (高勝率デイトレ)", color: "#ffd740" },
             { btnId: "btn-toggle-strat-ob", stratId: "orderbook_vwap", name: "戦略2 (板気配VWAP)", color: "#b388ff" },
             { btnId: "btn-toggle-strat-tc", stratId: "triple_confluence", name: "戦略1 (スイング)", color: "#00e5ff" }
         ];
@@ -311,13 +318,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             updateBtnUI();
 
-            btn.addEventListener("click", () => {
+            btn.addEventListener("click", async () => {
                 const nextState = !strategyRegistry.isStrategyEnabled(item.stratId);
                 strategyRegistry.setStrategyEnabled(item.stratId, nextState);
                 dataStore.saveStrategyToggles(strategyRegistry.getStrategyToggles());
                 updateBtnUI();
                 console.log(`[Strategy Toggle] ${item.name} 監視設定変更: ${nextState ? 'ON' : 'OFF'}`);
-                renderAllUI();
+                await renderAllUI();
             });
         });
 
@@ -325,17 +332,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         const check70 = document.getElementById("check-filter-70-plus");
         if (check70) {
             check70.checked = Boolean(dataStore.filter70PlusOnly);
-            check70.addEventListener("change", (e) => {
-                dataStore.saveFilter70PlusOnly(e.target.checked);
+            check70.addEventListener("change", () => {
+                dataStore.saveFilter70PlusOnly(check70.checked);
                 renderSymbolSelector();
             });
         }
     }
 
-    function renderAllUI() {
+    async function renderAllUI() {
         if (!symbolsData || !symbolsData.symbols) return;
 
-        try { processAutoTrading(); } catch(e) { console.error("processAutoTrading Error:", e); }
+        try { await processAutoTrading(); } catch(e) { console.error("processAutoTrading Error:", e); }
         try { updateAutoTradeButtonUI(); } catch(e) { console.error("updateAutoTradeButtonUI Error:", e); }
 
         // 初期選択銘柄の調整
@@ -396,7 +403,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             btnRefreshText.innerText = "今すぐ相場更新";
         }
 
-        renderAllUI();
+        await renderAllUI();
     }
 
     // --- 2. 東証市場ステータスの反映 ---
@@ -977,6 +984,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             await dataStore.addPosition(pos);
             modal.classList.remove("active");
+            notifier.showToast("buy", `⚡ 【手動約定】${pos.symbolName} (${pos.symbol})`, `買値 ¥${pos.entryPrice.toLocaleString()} (${pos.shares}株・¥${pos.investmentAmount.toLocaleString()}) でエントリーしました。`, 6000);
             renderSymbolSelector();
             updateGlobalSignalTicker();
             selectSymbol(currentSymbolCode);
@@ -1002,8 +1010,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             const note = document.getElementById("exit-modal-notes").value;
             const tags = document.getElementById("exit-modal-tags").value;
 
-            await dataStore.closePosition(pos.symbol, exitPrice, reason, note, tags);
+            const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, reason, note, tags);
             modal.classList.remove("active");
+            if (closedTrade) {
+                const isWin = closedTrade.pnl_amount > 0;
+                notifier.showToast(isWin ? "profit" : "loss", `🚪 【手動決済】${pos.symbolName}`, `決済値: ¥${exitPrice.toLocaleString()} | 損益: ${isWin ? '+' : ''}¥${Math.round(closedTrade.pnl_amount).toLocaleString()} (${closedTrade.pnl_pct}%)`, 6000);
+            }
             renderSymbolSelector();
             updateGlobalSignalTicker();
             selectSymbol(currentSymbolCode);
@@ -1173,7 +1185,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const data = await res.json();
                     if (data && data.symbols) {
                         symbolsData = data;
-                        renderAllUI();
+                        await renderAllUI();
                         refreshCountdown = 30;
                         btnText.innerText = "今すぐ相場更新";
                         return;

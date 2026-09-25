@@ -97,9 +97,88 @@ class NotificationManager {
     }
 
     /**
-     * ブラウザ通知の送信
+     * 画面上部へのスタイリッシュなトーストポップアップ通知を表示
+     * @param {string} type - 'buy' | 'profit' | 'loss' | 'info'
+     * @param {string} title - タイトル
+     * @param {string} message - メッセージ詳細
+     * @param {number} durationMs - 表示ミリ秒 (デフォルト 6000ms)
      */
-    sendBrowserNotification(title, body, tag = "highwin-alert") {
+    showToast(type = "info", title = "", message = "", durationMs = 6000) {
+        let container = document.getElementById("toast-container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "toast-container";
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement("div");
+        toast.className = `toast-popup toast-${type}`;
+
+        let icon = "🔔";
+        let badgeText = "SIGNAL";
+        let badgeColor = "var(--primary)";
+        if (type === "buy") {
+            icon = "⚡";
+            badgeText = "約定エントリー";
+            badgeColor = "var(--accent-green)";
+        } else if (type === "profit") {
+            icon = "🎯";
+            badgeText = "利食い達成";
+            badgeColor = "#ffd740";
+        } else if (type === "loss") {
+            icon = "🛑";
+            badgeText = "損切り撤退";
+            badgeColor = "var(--accent-red)";
+        } else if (type === "info") {
+            icon = "💡";
+            badgeText = "INFO";
+            badgeColor = "var(--primary)";
+        }
+
+        toast.innerHTML = `
+            <div class="toast-icon">${icon}</div>
+            <div class="toast-content">
+                <div class="toast-title">
+                    <span>${title}</span>
+                    <span class="toast-badge" style="background:${badgeColor}22; color:${badgeColor}; border:1px solid ${badgeColor};">${badgeText}</span>
+                </div>
+                <div class="toast-message">${message.replace(/\n/g, '<br>')}</div>
+            </div>
+            <button class="toast-close-btn" title="閉じる">&times;</button>
+        `;
+
+        const closeBtn = toast.querySelector(".toast-close-btn");
+        const removeToast = () => {
+            toast.classList.remove("toast-show");
+            toast.classList.add("toast-hide");
+            setTimeout(() => {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 400);
+        };
+
+        if (closeBtn) {
+            closeBtn.addEventListener("click", removeToast);
+        }
+
+        container.appendChild(toast);
+
+        // 次のフレームでアニメーション表示
+        requestAnimationFrame(() => {
+            toast.classList.add("toast-show");
+        });
+
+        // 一定時間後に自動消滅
+        setTimeout(removeToast, durationMs);
+    }
+
+    /**
+     * ブラウザ通知の送信 (デスクトップ通知 + 画面内トースト両対応)
+     */
+    sendBrowserNotification(title, body, tag = "highwin-alert", toastType = "info") {
+        // 1. 画面上部への美しいトーストポップアップを常に表示
+        this.showToast(toastType, title, body, 6500);
+
+        // 2. OSデスクトップ通知
         if (!this.settings.browser.enabled) return;
 
         if ("Notification" in window && Notification.permission === "granted") {
@@ -280,11 +359,11 @@ class NotificationManager {
         let holdingPeriodStr = "最大3営業日 (15バー)";
 
         if (isScalp) {
-            stratDisplayName = strategyMeta.displayName || "【戦略3】MTF高速スキャル・デイトレ";
-            tpPctStr = "+1.2%";
-            slPctStr = "-0.6%";
-            rrRatioStr = "2.00 : 1";
-            holdingPeriodStr = "最大30〜60分 (10バー)";
+            stratDisplayName = strategyMeta.displayName || "【戦略3】MTF大口VWAP反発・板気配急増 高勝率デイトレ";
+            tpPctStr = "+2.5%";
+            slPctStr = "-1.6%";
+            rrRatioStr = "1.56 : 1";
+            holdingPeriodStr = "最大8バー (当日大引け手仕舞い・持ち越しゼロ)";
         } else if (isVWAP) {
             stratDisplayName = strategyMeta.displayName || "【戦略2】板気配VWAP反発押し目";
             tpPctStr = "+6.0%";
@@ -295,27 +374,27 @@ class NotificationManager {
             stratDisplayName = strategyMeta.displayName;
         }
 
-        const title = `🔔 【買いシグナル点灯】${info.name} (${info.code}) [${signalTime}]`;
+        const title = `⚡ 【約定エントリー】${info.name} (${info.code}) [${signalTime}]`;
         const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
         const orderInvest = (orderCalc && orderCalc.investment) ? `¥${orderCalc.investment.toLocaleString()}` : "10万円以内";
-        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.012 : 1.06)).toFixed(1)}`;
-        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.994 : 0.975)).toFixed(1)}`;
-        const body = `点灯日時: ${signalTime}\n採用戦略: ${stratDisplayName}\n推奨買値: ¥${latest.close.toLocaleString()} | 推奨株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr}) | RR比 ${rrRatioStr} | ${holdingPeriodStr}`;
+        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.025 : 1.06)).toFixed(1)}`;
+        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.984 : 0.975)).toFixed(1)}`;
+        const body = `約定日時: ${signalTime}\n採用戦略: ${stratDisplayName}\n約定買値: ¥${latest.close.toLocaleString()} | 株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr}) | ${holdingPeriodStr}`;
 
-        // 1. ブラウザ通知
-        this.sendBrowserNotification(title, body, `buy-${info.code}`);
+        // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
+        this.sendBrowserNotification(title, body, `buy-${info.code}`, "buy");
 
         // 2. Discord 通知
         if (this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
             await this.sendDiscordNotification(
                 title,
-                `**${stratDisplayName}** により、**${info.name} (${info.code})** にて強力な買いシグナルが点灯しました！\n⏰ **点灯日時: ${signalTime}**`,
+                `**${stratDisplayName}** により、**${info.name} (${info.code})** の自動エントリーが約定しました！\n⏰ **約定日時: ${signalTime}**`,
                 [
                     { name: "採用戦略", value: stratDisplayName, inline: false },
-                    { name: "点灯日時", value: signalTime, inline: true },
+                    { name: "約定日時", value: signalTime, inline: true },
                     { name: "市場 / セクター", value: `${info.market || '東証'} / ${info.sector || '成長小型'}`, inline: true },
-                    { name: "推奨エントリー価格", value: `¥${latest.close.toLocaleString()}`, inline: true },
-                    { name: "推奨株数 (100株単元)", value: `${orderNote} (${orderInvest})`, inline: true },
+                    { name: "約定価格", value: `¥${latest.close.toLocaleString()}`, inline: true },
+                    { name: "保有株数 (100株単元)", value: `${orderNote} (${orderInvest})`, inline: true },
                     { name: `利確目標 (${tpPctStr})`, value: tpStr, inline: true },
                     { name: `損切ライン (${slPctStr})`, value: slStr, inline: true },
                     { name: "想定保有期間", value: holdingPeriodStr, inline: true },
@@ -376,8 +455,9 @@ class NotificationManager {
         const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
         const body = `決済日時: ${exitTimeJst}\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
 
-        // 1. ブラウザ通知
-        this.sendBrowserNotification(title, body, `exit-${trade.symbol}`);
+        // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
+        const toastType = isTP ? "profit" : (isSL ? "loss" : "info");
+        this.sendBrowserNotification(title, body, `exit-${trade.symbol}`, toastType);
 
         // 2. Discord 通知
         if (this.settings.chat && this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
