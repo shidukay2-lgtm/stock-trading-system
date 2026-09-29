@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-09-29 22:49:14",
+  "generated_at": "2026-09-29 23:01:25",
   "market_status": {
     "is_open": false,
     "is_weekday": true,
-    "status_text": "⚪ 取引時間外 (最新終値維持)",
-    "status_desc": "次の開場: 平日 09:00 (前場開始)",
-    "current_time": "2026-09-29 22:48:51"
+    "status_text": "⚪ 取引時間外 (閉場中・新規エントリー停止)",
+    "status_desc": "時間外のため新規取引停止中 (次の開場: 平日 09:00 前場開始)",
+    "current_time": "2026-09-29 23:00:53"
   },
   "criteria": {
     "min_win_rate_pct": 65.0,
@@ -16099,7 +16099,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-E62E9A7F",
+          "trade_id": "T-ED7C8E1D",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16120,7 +16120,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-736C4962",
+          "trade_id": "T-4D49C057",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16141,7 +16141,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-12307285",
+          "trade_id": "T-BB894CC5",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16162,7 +16162,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-4C078C7D",
+          "trade_id": "T-1E8B318F",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16183,7 +16183,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-18F7AC17",
+          "trade_id": "T-CC0E8364",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16204,7 +16204,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-917DAC9A",
+          "trade_id": "T-0C772965",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16225,7 +16225,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-707BB226",
+          "trade_id": "T-609C82A2",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16246,7 +16246,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-0B75878D",
+          "trade_id": "T-1D189192",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16267,7 +16267,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-9A36DDBD",
+          "trade_id": "T-515FC3D3",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16288,7 +16288,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-8BB386E5",
+          "trade_id": "T-84E57B43",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16309,7 +16309,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-C5723623",
+          "trade_id": "T-DDA1610D",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16330,7 +16330,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-E6092D9B",
+          "trade_id": "T-4F124228",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16351,7 +16351,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-4D801C2F",
+          "trade_id": "T-E823E206",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16372,7 +16372,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-EAA38B79",
+          "trade_id": "T-BCE26631",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16393,7 +16393,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-11152EEA",
+          "trade_id": "T-E8839C33",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16414,7 +16414,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-8DAE25E5",
+          "trade_id": "T-BCB41BFE",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16435,7 +16435,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-5931D1C6",
+          "trade_id": "T-7FD9E835",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16456,7 +16456,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A39785D8",
+          "trade_id": "T-EF1D3110",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16477,7 +16477,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-9C946D9D",
+          "trade_id": "T-1FC5F55D",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16498,7 +16498,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-93121921",
+          "trade_id": "T-A346DBCA",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16519,7 +16519,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-4C7720AC",
+          "trade_id": "T-B8A9DCB7",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -16540,7 +16540,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-A1F3B2D2",
+          "trade_id": "T-B189163E",
           "symbol": "5026.T",
           "symbol_name": "トリプルアイズ",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32645,7 +32645,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-A44756C5",
+          "trade_id": "T-690BBE8A",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32666,7 +32666,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-51F88EB4",
+          "trade_id": "T-11E31885",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32687,7 +32687,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-2FCDB1BC",
+          "trade_id": "T-6915440E",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32708,7 +32708,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-75D52B5C",
+          "trade_id": "T-E482A953",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32729,7 +32729,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-EB71F3F4",
+          "trade_id": "T-BA28C211",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32750,7 +32750,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-943A6DF7",
+          "trade_id": "T-AE93ABAF",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32771,7 +32771,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-594F270F",
+          "trade_id": "T-4FB5C6AB",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32792,7 +32792,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A73A7313",
+          "trade_id": "T-7798959F",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32813,7 +32813,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-CC93C8FF",
+          "trade_id": "T-16CB2EE8",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32834,7 +32834,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-B3005E88",
+          "trade_id": "T-F7717E45",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32855,7 +32855,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-64421A4C",
+          "trade_id": "T-5E200A9C",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32876,7 +32876,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-995FDF0B",
+          "trade_id": "T-16C2EB2B",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32897,7 +32897,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-5A459E7D",
+          "trade_id": "T-B7411677",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32918,7 +32918,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-9D38CE85",
+          "trade_id": "T-6B646043",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32939,7 +32939,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-88A769D3",
+          "trade_id": "T-DBB50D69",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32960,7 +32960,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-A40B1BCF",
+          "trade_id": "T-3B02F40E",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -32981,7 +32981,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-931D7DF2",
+          "trade_id": "T-FB6B493E",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -33002,7 +33002,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-42C59949",
+          "trade_id": "T-9523C247",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -33023,7 +33023,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-E25D5518",
+          "trade_id": "T-CAB771ED",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -33044,7 +33044,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-FB8E84EE",
+          "trade_id": "T-B01E98A8",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49149,7 +49149,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-F8F649E2",
+          "trade_id": "T-2E25F61B",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49170,7 +49170,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-E6D78BF7",
+          "trade_id": "T-5852E486",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49191,7 +49191,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-6CDC4DA0",
+          "trade_id": "T-60A435BE",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49212,7 +49212,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-18FEAD18",
+          "trade_id": "T-9B82E050",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49233,7 +49233,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-289824B0",
+          "trade_id": "T-09ED02FE",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49254,7 +49254,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-55B7FDAE",
+          "trade_id": "T-4F45C9E4",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49275,7 +49275,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-E53CB25D",
+          "trade_id": "T-59DFBDA0",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49296,7 +49296,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-9EAB1989",
+          "trade_id": "T-3E230DEE",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49317,7 +49317,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-4F80784B",
+          "trade_id": "T-EF27C2E7",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49338,7 +49338,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-B92111FE",
+          "trade_id": "T-E9A7582E",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49359,7 +49359,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-AB41AED1",
+          "trade_id": "T-47D83553",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49380,7 +49380,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-4869E672",
+          "trade_id": "T-66F931EF",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49401,7 +49401,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-77A962C7",
+          "trade_id": "T-E1CB3E0F",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49422,7 +49422,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-FDE13C28",
+          "trade_id": "T-489FE2B6",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49443,7 +49443,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-42220727",
+          "trade_id": "T-D1D3FFF4",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49464,7 +49464,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-49C1721E",
+          "trade_id": "T-E9C29F9D",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49485,7 +49485,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-59819DB1",
+          "trade_id": "T-EDE9B75A",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49506,7 +49506,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-62BB6287",
+          "trade_id": "T-FACD6E4A",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -49527,7 +49527,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-26E97C2B",
+          "trade_id": "T-7FFE2F00",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65632,7 +65632,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-0CB43A42",
+          "trade_id": "T-38BD8256",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65653,7 +65653,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-5677A82E",
+          "trade_id": "T-5C42A2FA",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65674,7 +65674,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-6B15F5F4",
+          "trade_id": "T-76707157",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65695,7 +65695,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-DAFCF75D",
+          "trade_id": "T-643C5976",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65716,7 +65716,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-DCAEAF4C",
+          "trade_id": "T-1F0A6B16",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65737,7 +65737,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A7706A9C",
+          "trade_id": "T-B1CA152A",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65758,7 +65758,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-37ABFA07",
+          "trade_id": "T-B4DB7FFC",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65779,7 +65779,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-2069AF06",
+          "trade_id": "T-73AD67A7",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65800,7 +65800,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-C128A3F7",
+          "trade_id": "T-4A05C322",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65821,7 +65821,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-23053831",
+          "trade_id": "T-2D291F74",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65842,7 +65842,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-4B3E9C2F",
+          "trade_id": "T-E3533036",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65863,7 +65863,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A8770AB7",
+          "trade_id": "T-7B88095B",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65884,7 +65884,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-69FE3D97",
+          "trade_id": "T-8C55EE09",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65905,7 +65905,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-246036D1",
+          "trade_id": "T-A1635635",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65926,7 +65926,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-7373968D",
+          "trade_id": "T-5AB982C7",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65947,7 +65947,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-D969C5CC",
+          "trade_id": "T-0868C16A",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65968,7 +65968,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-5BCCFD4C",
+          "trade_id": "T-B46761A9",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -65989,7 +65989,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-F981DF24",
+          "trade_id": "T-1EE43A3D",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -66010,7 +66010,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-3C7537F7",
+          "trade_id": "T-5CBA9DD7",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82115,7 +82115,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-A675AF11",
+          "trade_id": "T-F8CC4D88",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82136,7 +82136,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-B8284CD9",
+          "trade_id": "T-02F6C347",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82157,7 +82157,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-4036E4CD",
+          "trade_id": "T-7A70E8ED",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82178,7 +82178,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-79827FFB",
+          "trade_id": "T-48B7A4D6",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82199,7 +82199,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-CCD626C1",
+          "trade_id": "T-C1E3C221",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82220,7 +82220,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-8A9E2CB8",
+          "trade_id": "T-3BD8A9C0",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82241,7 +82241,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-6F28C9ED",
+          "trade_id": "T-407620E7",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82262,7 +82262,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-C1FCC069",
+          "trade_id": "T-CB7A027B",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82283,7 +82283,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-24A12310",
+          "trade_id": "T-A67F8A56",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82304,7 +82304,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-B9DB554D",
+          "trade_id": "T-25084206",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82325,7 +82325,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-F6BEBC9A",
+          "trade_id": "T-CD1006F5",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82346,7 +82346,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-1A93580C",
+          "trade_id": "T-DBA5F90C",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82367,7 +82367,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-1F2C4EC0",
+          "trade_id": "T-2A0379E9",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82388,7 +82388,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-55AEF1B9",
+          "trade_id": "T-DB4CF7B0",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82409,7 +82409,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-28624389",
+          "trade_id": "T-9AB0D92E",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82430,7 +82430,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-EE72A899",
+          "trade_id": "T-A5E2A716",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82451,7 +82451,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-87A184E6",
+          "trade_id": "T-B950DF04",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82472,7 +82472,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-19989C69",
+          "trade_id": "T-8BBF19E6",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82493,7 +82493,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-FCC9E942",
+          "trade_id": "T-651E0533",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82514,7 +82514,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-CD899949",
+          "trade_id": "T-58A52355",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82535,7 +82535,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-AD39031D",
+          "trade_id": "T-2FB7471B",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82556,7 +82556,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-4AA16299",
+          "trade_id": "T-DED038C7",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82577,7 +82577,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-E4EA80C5",
+          "trade_id": "T-36691F01",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -82598,7 +82598,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-986B0C4C",
+          "trade_id": "T-708F637B",
           "symbol": "2484.T",
           "symbol_name": "出前館",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98703,7 +98703,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-68076B15",
+          "trade_id": "T-36F5E903",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98724,7 +98724,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-EF5906F2",
+          "trade_id": "T-8CB49186",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98745,7 +98745,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-9F7D982D",
+          "trade_id": "T-8DF0B302",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98766,7 +98766,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-0B7F9B07",
+          "trade_id": "T-B409551E",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98787,7 +98787,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-4B684C2B",
+          "trade_id": "T-9AA0A21C",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98808,7 +98808,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-60CFB04E",
+          "trade_id": "T-303875BF",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98829,7 +98829,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-22FF8897",
+          "trade_id": "T-30A1A2DD",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98850,7 +98850,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-003DD7A7",
+          "trade_id": "T-F59E0EA5",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98871,7 +98871,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-8AFB11E4",
+          "trade_id": "T-AC8D9FD1",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98892,7 +98892,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-FE99A6D7",
+          "trade_id": "T-DA82087B",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98913,7 +98913,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-72DF0DFF",
+          "trade_id": "T-AC7B32A0",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98934,7 +98934,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-1EA8F566",
+          "trade_id": "T-7A25CC4B",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98955,7 +98955,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-3DA9B0E7",
+          "trade_id": "T-F7598D24",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98976,7 +98976,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-A726ED94",
+          "trade_id": "T-C288CB00",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -98997,7 +98997,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-1F38E52C",
+          "trade_id": "T-844F0F6A",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99018,7 +99018,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-E506D7D3",
+          "trade_id": "T-CB234ADD",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99039,7 +99039,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-D004C85F",
+          "trade_id": "T-93F78BE9",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99060,7 +99060,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-17296DB6",
+          "trade_id": "T-82D3BC50",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99081,7 +99081,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-862D3D52",
+          "trade_id": "T-B4A93B68",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99102,7 +99102,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-50BCF643",
+          "trade_id": "T-8B370877",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99123,7 +99123,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-8BB839B8",
+          "trade_id": "T-0FCB2D15",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99144,7 +99144,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-36DA0648",
+          "trade_id": "T-9ADCF25F",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99165,7 +99165,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-837D3745",
+          "trade_id": "T-13F34DC4",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99186,7 +99186,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-284DC514",
+          "trade_id": "T-A3AA370D",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -99207,7 +99207,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-2053533B",
+          "trade_id": "T-0570315C",
           "symbol": "3903.T",
           "symbol_name": "gumi",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115312,7 +115312,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-415CEA68",
+          "trade_id": "T-AEA42927",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115333,7 +115333,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-76554B9A",
+          "trade_id": "T-FC242FB0",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115354,7 +115354,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-C846D23D",
+          "trade_id": "T-116AFB34",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115375,7 +115375,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-F3FA83B9",
+          "trade_id": "T-B2712E6C",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115396,7 +115396,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-6D50905C",
+          "trade_id": "T-E6BF6F6E",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115417,7 +115417,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-AF0E9815",
+          "trade_id": "T-FCB0E6BC",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115438,7 +115438,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-3CCE7145",
+          "trade_id": "T-2B9B4FB2",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115459,7 +115459,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A81A5709",
+          "trade_id": "T-092D4A30",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115480,7 +115480,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-87D4C27A",
+          "trade_id": "T-BD2A8096",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115501,7 +115501,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-F88492CC",
+          "trade_id": "T-E9B203AF",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115522,7 +115522,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-A9A0EAE3",
+          "trade_id": "T-28B09828",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115543,7 +115543,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-150D6813",
+          "trade_id": "T-100444F7",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115564,7 +115564,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-7F31C10E",
+          "trade_id": "T-6F341ABD",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115585,7 +115585,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-9C5A76A5",
+          "trade_id": "T-A7A081D4",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115606,7 +115606,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-FAFED1C0",
+          "trade_id": "T-EDE8287C",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115627,7 +115627,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-815973E2",
+          "trade_id": "T-AAADC3B3",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115648,7 +115648,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-3840DCC3",
+          "trade_id": "T-5622152A",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115669,7 +115669,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-75B596ED",
+          "trade_id": "T-1C7B2456",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115690,7 +115690,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-57CEC119",
+          "trade_id": "T-17EAA0A2",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115711,7 +115711,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-C520D5A6",
+          "trade_id": "T-3C920159",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115732,7 +115732,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-6BF56793",
+          "trade_id": "T-3C1A6F13",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115753,7 +115753,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-5399F019",
+          "trade_id": "T-B0089D52",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115774,7 +115774,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-19366016",
+          "trade_id": "T-81BAFF5C",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -115795,7 +115795,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-48520484",
+          "trade_id": "T-A33C8D7B",
           "symbol": "5246.T",
           "symbol_name": "ELEMENTS",
           "strategy_name": "HighWin_TripleConfluence",
@@ -131900,7 +131900,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-A5D83CB9",
+          "trade_id": "T-88C0D1AE",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -131921,7 +131921,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-3411FD58",
+          "trade_id": "T-15907E23",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -131942,7 +131942,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-90AD2B79",
+          "trade_id": "T-77F8A4B2",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -131963,7 +131963,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-D57F7862",
+          "trade_id": "T-FA4251B7",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -131984,7 +131984,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-13FE4233",
+          "trade_id": "T-1875F1E6",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132005,7 +132005,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-971BEACD",
+          "trade_id": "T-80C72C06",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132026,7 +132026,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-22AB4C93",
+          "trade_id": "T-411FD9F4",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132047,7 +132047,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-EB80FBCE",
+          "trade_id": "T-CC1625BE",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132068,7 +132068,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-65844B32",
+          "trade_id": "T-6DD7D12E",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132089,7 +132089,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-69B8B63E",
+          "trade_id": "T-680FE8EA",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132110,7 +132110,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-D1693FE6",
+          "trade_id": "T-3DAD8F42",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132131,7 +132131,7 @@
           "tags": "#HighWin_TripleConfluence #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-9C20BE28",
+          "trade_id": "T-246C3028",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132152,7 +132152,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-18275392",
+          "trade_id": "T-A7D6A15A",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132173,7 +132173,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-FB2298EA",
+          "trade_id": "T-76936492",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132194,7 +132194,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-373FA446",
+          "trade_id": "T-86EAF215",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132215,7 +132215,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-388B410C",
+          "trade_id": "T-8C2BC6DF",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132236,7 +132236,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-8DADAC4B",
+          "trade_id": "T-F6B770BE",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132257,7 +132257,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-AB887C9B",
+          "trade_id": "T-2A81E91B",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132278,7 +132278,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-9DE7D954",
+          "trade_id": "T-D80E45C4",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132299,7 +132299,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-9A2F8287",
+          "trade_id": "T-EA27486B",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132320,7 +132320,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-A76F836D",
+          "trade_id": "T-B872B226",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132341,7 +132341,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-D146CDBE",
+          "trade_id": "T-F39474A8",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132362,7 +132362,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-D441B829",
+          "trade_id": "T-CADC76CD",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132383,7 +132383,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-E5E96F5A",
+          "trade_id": "T-F29F1DAC",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132404,7 +132404,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-C4E4359C",
+          "trade_id": "T-F27709E9",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132425,7 +132425,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-3C9E2369",
+          "trade_id": "T-0FB686DB",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132446,7 +132446,7 @@
           "tags": "#HighWin_TripleConfluence #STOP_LOSS"
         },
         {
-          "trade_id": "T-75EB2132",
+          "trade_id": "T-99E26676",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132467,7 +132467,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-F2607B80",
+          "trade_id": "T-60446277",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",
@@ -132488,7 +132488,7 @@
           "tags": "#HighWin_TripleConfluence #TIMEOUT"
         },
         {
-          "trade_id": "T-3F6B242C",
+          "trade_id": "T-1791C479",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_TripleConfluence",

@@ -55,33 +55,82 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    /**
+     * 日本標準時 (JST: UTC+9) の現在日時文字列を取得
+     */
+    function getNowJSTString(includeSeconds = true) {
+        try {
+            const formatter = new Intl.DateTimeFormat('ja-JP', {
+                timeZone: 'Asia/Tokyo',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: false
+            });
+            const parts = formatter.formatToParts(new Date());
+            const m = {};
+            parts.forEach(p => m[p.type] = p.value);
+            return includeSeconds
+                ? `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`
+                : `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}`;
+        } catch (e) {
+            const now = new Date();
+            const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+            const y = jst.getUTCFullYear();
+            const mo = String(jst.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(jst.getUTCDate()).padStart(2, '0');
+            const h = String(jst.getUTCHours()).padStart(2, '0');
+            const mi = String(jst.getUTCMinutes()).padStart(2, '0');
+            const s = String(jst.getUTCSeconds()).padStart(2, '0');
+            return includeSeconds ? `${y}-${mo}-${d} ${h}:${mi}:${s}` : `${y}-${mo}-${d} ${h}:${mi}`;
+        }
+    }
+    window.getNowJSTString = getNowJSTString;
+
+    /**
+     * 日本株式取引所 (東証) が現在開場中か判定 (JST: 平日 09:00〜11:30 / 12:30〜15:30)
+     * ※ 夜間・土日・祝日・昼休みの時間外取引は完全不可
+     */
+    function isTSEMarketOpenNow() {
+        const jstStr = getNowJSTString(true);
+        const y = parseInt(jstStr.substring(0, 4), 10);
+        const m = parseInt(jstStr.substring(5, 7), 10) - 1;
+        const d = parseInt(jstStr.substring(8, 10), 10);
+        const h = parseInt(jstStr.substring(11, 13), 10);
+        const mi = parseInt(jstStr.substring(14, 16), 10);
+
+        // JST基準のDateオブジェクトを作成して曜日判定 (0:日, 1:月 ... 6:土)
+        const jstDate = new Date(Date.UTC(y, m, d, h, mi));
+        const dayOfWeek = jstDate.getUTCDay();
+
+        // 土曜(6)・日曜(0)は完全休場
+        if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+
+        const curMinVal = h * 60 + mi;
+
+        // 前場: 09:00 〜 11:30 (540分 〜 690分)
+        const isMorning = (curMinVal >= 540 && curMinVal <= 690);
+        // 後場: 12:30 〜 15:30 (750分 〜 930分)
+        const isAfternoon = (curMinVal >= 750 && curMinVal <= 930);
+
+        return isMorning || isAfternoon;
+    }
+    window.isTSEMarketOpenNow = isTSEMarketOpenNow;
+
     // 同一足または決済直後の無限再エントリーを防ぐクールダウン管理
     const exitCooldownMap = {};
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・高速スキャル・デイトレ持ち越し完全防止) ---
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・東証日中開場時間帯のみ厳格執行) ---
     async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
         if (!dataStore.autoTradingEnabled) return;
 
-        const getJst = window.getNowJSTString || function(includeSeconds = true) {
-            const now = new Date();
-            const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-            const y = jst.getUTCFullYear();
-            const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
-            const d = String(jst.getUTCDate()).padStart(2, '0');
-            const h = String(jst.getUTCHours()).padStart(2, '0');
-            const min = String(jst.getUTCMinutes()).padStart(2, '0');
-            const sec = String(jst.getUTCSeconds()).padStart(2, '0');
-            return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
-        };
-
-        const nowJstStr = getJst(true);
+        const nowJstStr = getNowJSTString(true);
         const todayDateStr = nowJstStr.substring(0, 10); // YYYY-MM-DD
         const currentHour = parseInt(nowJstStr.substring(11, 13), 10);
         const currentMin = parseInt(nowJstStr.substring(14, 16), 10);
-        const isMarketOpen = symbolsData.market_status ? Boolean(symbolsData.market_status.is_open) : false;
+        const isMarketOpen = isTSEMarketOpenNow();
         // 開場中の大引け時間帯判定 (平日14:50〜15:30)
-        const isMarketCloseTime = isMarketOpen && ((currentHour === 14 && currentMin >= 50) || currentHour === 15);
+        const isMarketCloseTime = isMarketOpen && ((currentHour === 14 && currentMin >= 50) || (currentHour === 15 && currentMin <= 30));
 
         // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了 / 持ち越し防止 / 大引け手仕舞い)
         const currentPositions = [...dataStore.positions];
@@ -221,6 +270,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         // 2. 新規買いシグナルの自動エントリーチェック (監視ONになっている戦略のみを巡回)
+        // 【最重要ルール】日本株式取引所（東証）の日中開場時間帯（平日 09:00〜11:30 / 12:30〜15:30）のみ新規エントリーを許可
+        // 時間外取引（夜間・土日・祝日・昼休み）のエントリーは完全禁止
+        if (!isTSEMarketOpenNow()) {
+            return; // 東証閉場中のため新規自動エントリーを完全停止
+        }
+
         const enabledStrategies = strategyRegistry.getEnabledStrategies();
         if (enabledStrategies.length === 0) return; // 全てOFFなら新規エントリー停止
 
@@ -259,12 +314,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const analyzed = stratInstance.analyzeCandles(sym.candles);
                     const latest = analyzed[analyzed.length - 1];
 
+                    // 直近足でのシグナル点灯チェック
                     if (latest && latest.isBuySignal) {
                         const orderCalc = stratInstance.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
                         if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
                             const entryPrice = latest.close;
-                            // リアルタイム秒付き現在日時で約定記録
-                            const realtimeEntryTime = getJst(true);
+                            // リアルタイム日本標準時 (JST) での約定記録
+                            const realtimeEntryTime = getNowJSTString(true);
                             const pos = {
                                 symbol: sym.info.code,
                                 symbolName: sym.info.name,
@@ -281,7 +337,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 notes: `🤖 リアルタイム自動売買エントリー約定 [${stratMeta.shortName || stratMeta.name}] (${orderCalc.note})`
                             };
 
-                            console.log(`[AutoTrade] 自動エントリー約定: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}, 約定日時: ${pos.entryTime}`);
+                            console.log(`[AutoTrade] 自動エントリー約定 (東証開場中): ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}, 約定日時(JST): ${pos.entryTime}`);
                             await dataStore.addPosition(pos);
                             notifier.notifyBuySignal(sym.info, latest, orderCalc, stratMeta);
                             break; // 1銘柄につき1エントリー
@@ -1167,6 +1223,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         modal.classList.add("active");
 
         document.getElementById("btn-confirm-entry").onclick = async () => {
+            // 日本株式取引所 (東証) の日中取引時間チェック
+            if (!isTSEMarketOpenNow()) {
+                alert("⚠️ 現在は日本株式取引所（東証）の取引時間外です。\n\n【東証正規取引時間】\n・平日 前場: 09:00 〜 11:30\n・平日 後場: 12:30 〜 15:30\n\n※ 時間外取引（夜間・土日・祝日・昼休み）のエントリーはできません。開場中にご注文ください。");
+                return;
+            }
+
             const price = parseFloat(document.getElementById("entry-modal-price").value);
             const shares = parseInt(document.getElementById("entry-modal-shares").value);
             
@@ -1181,27 +1243,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
-            const getJst = window.getNowJSTString || function(includeSeconds = true) {
-                const now = new Date();
-                const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-                const y = jst.getUTCFullYear();
-                const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
-                const d = String(jst.getUTCDate()).padStart(2, '0');
-                const h = String(jst.getUTCHours()).padStart(2, '0');
-                const min = String(jst.getUTCMinutes()).padStart(2, '0');
-                const sec = String(jst.getUTCSeconds()).padStart(2, '0');
-                return includeSeconds ? `${y}-${m}-${d} ${h}:${min}:${sec}` : `${y}-${m}-${d} ${h}:${min}`;
-            };
+            const realtimeEntryTime = getNowJSTString(true);
 
             const pos = {
                 symbol: info.code,
                 symbolName: info.name,
-                entryTime: getJst(true), // リアルタイム秒付き約定時刻
+                entryTime: realtimeEntryTime, // リアルタイム日本標準時(JST)約定日時
                 entryPrice: price,
+                maxPrice: price,
                 shares: shares,
                 investmentAmount: investment,
-                stopLossPrice: price * (1 - (activeStrategy.params.stopLossPct || 0.025)),
-                takeProfitPrice: price * (1 + (activeStrategy.params.takeProfitPct || 0.060)),
+                stopLossPrice: price * (1 - (activeStrategy.params.stopLossPct || 0.012)),
+                takeProfitPrice: price * (1 + (activeStrategy.params.takeProfitPct || 0.015)),
                 strategyName: activeMeta.name,
                 strategyDisplayName: activeMeta.displayName,
                 holdingBars: 0,

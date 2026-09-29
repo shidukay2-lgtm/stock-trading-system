@@ -33,29 +33,29 @@ from backtesting.engine import BacktestEngine
 JST = pytz.timezone("Asia/Tokyo")
 
 def check_market_status():
-    """東証市場が開場中か判定 (JST: 月〜金 9:00〜15:30)"""
+    """東証市場が開場中か厳格判定 (JST: 月〜金 前場9:00〜11:30 / 後場12:30〜15:30)"""
     now_jst = datetime.now(JST)
-    weekday = now_jst.weekday()  # 0: Mon ... 6: Sun
+    weekday = now_jst.weekday()  # 0: Mon ... 4: Fri, 5: Sat, 6: Sun
     hour = now_jst.hour
     minute = now_jst.minute
     current_time_val = hour * 60 + minute
 
-    # 平日 9:00〜15:30
     is_weekday = weekday < 5
-    is_session = (9 * 60 <= current_time_val <= 15 * 60 + 30)
-    is_lunch = (11 * 60 + 30 < current_time_val < 12 * 60 + 30)
+    is_morning_session = (9 * 60 <= current_time_val <= 11 * 60 + 30)
+    is_lunch_break = (11 * 60 + 30 < current_time_val < 12 * 60 + 30)
+    is_afternoon_session = (12 * 60 + 30 <= current_time_val <= 15 * 60 + 30)
 
-    is_open = is_weekday and is_session and not is_lunch
+    is_open = is_weekday and (is_morning_session or is_afternoon_session)
 
     if is_open:
         status_text = "🟢 東証開場中 (リアルタイム稼働)"
-        status_desc = "市場取引時間帯のため最新レートを高頻度で取得しています"
-    elif is_weekday and is_lunch:
+        status_desc = "日中取引時間帯のため最新レートを高頻度で自動監視・約定執行中"
+    elif is_weekday and is_lunch_break:
         status_text = "🟡 昼休み休場中 (12:30後場開始)"
-        status_desc = "前場終了・後場開始まで待機中"
+        status_desc = "前場終了・後場開始まで待機中 (時間外新規エントリー停止)"
     else:
-        status_text = "⚪ 取引時間外 (最新終値維持)"
-        status_desc = "次の開場: 平日 09:00 (前場開始)"
+        status_text = "⚪ 取引時間外 (閉場中・新規エントリー停止)"
+        status_desc = "時間外のため新規取引停止中 (次の開場: 平日 09:00 前場開始)"
 
     return {
         "is_open": is_open,

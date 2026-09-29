@@ -1,10 +1,10 @@
 {
   "account": {
     "initialCapital": 300000,
-    "cash": 224600,
+    "cash": 135200,
     "compoundingEnabled": true,
     "maxAllocationPct": 0.4,
-    "updatedAt": "2026-09-29T06:00:25.741Z"
+    "updatedAt": "2026-09-29T13:52:05.445Z"
   },
   "positions": [
     {
@@ -20,6 +20,21 @@
       "strategyDisplayName": "【戦略3】MTF大口VWAP反発・板気配急増 高勝率デイトレ",
       "holdingBars": 1,
       "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: 高勝率デイトレ] (200株 (100株単元・複利運用))"
+    },
+    {
+      "symbol": "2484.T",
+      "symbolName": "出前館",
+      "entryTime": "2026-09-29 22:52:05",
+      "entryPrice": 149,
+      "maxPrice": 149,
+      "shares": 600,
+      "investmentAmount": 89400,
+      "stopLossPrice": 147.212,
+      "takeProfitPrice": 151.23499999999999,
+      "strategyName": "HighWin_MTF_Scalping_Breakout",
+      "strategyDisplayName": "【戦略3】プロ仕様 高速スキャルピング・利益ロック＆勝ち逃げデイトレ",
+      "holdingBars": 1,
+      "notes": "🤖 リアルタイム自動売買エントリー約定 [戦略3: プロスキャル] (600株 (100株単元・複利運用))"
     }
   ],
   "trades": [

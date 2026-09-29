@@ -341,12 +341,29 @@ class NotificationManager {
         if (!this.settings || !this.settings.events || !this.settings.events.buySignal) return;
         if (!info || !latest) return;
 
-        const getJst = window.getNowJSTString || function() {
-            const now = new Date();
-            const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
-            return jst.toISOString().replace("T", " ").substring(0, 16);
+        const getJst = (typeof window !== "undefined" && window.getNowJSTString) ? window.getNowJSTString : function(includeSeconds = true) {
+            try {
+                const formatter = new Intl.DateTimeFormat('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false
+                });
+                const parts = formatter.formatToParts(new Date());
+                const m = {};
+                parts.forEach(p => m[p.type] = p.value);
+                return includeSeconds
+                    ? `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`
+                    : `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}`;
+            } catch (e) {
+                const now = new Date();
+                const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+                return jst.toISOString().replace("T", " ").substring(0, 19);
+            }
         };
-        const signalTime = latest.time || getJst();
+
+        // 常にリアルタイムの日本標準時 (JST) で通知日時を発行
+        const realtimeSignalTime = getJst(true);
 
         // 戦略情報の設定
         const isScalp = strategyMeta && (strategyMeta.id === "mtf_scalping" || (strategyMeta.name && strategyMeta.name.includes("Scalping")));
@@ -359,11 +376,11 @@ class NotificationManager {
         let holdingPeriodStr = "最大3営業日 (15バー)";
 
         if (isScalp) {
-            stratDisplayName = strategyMeta.displayName || "【戦略3】MTF大口VWAP反発・板気配急増 高勝率デイトレ";
-            tpPctStr = "+2.5%";
-            slPctStr = "-1.6%";
-            rrRatioStr = "1.56 : 1";
-            holdingPeriodStr = "最大8バー (当日大引け手仕舞い・持ち越しゼロ)";
+            stratDisplayName = strategyMeta.displayName || "【戦略3】プロ仕様 高速スキャルピング・利益ロック＆勝ち逃げデイトレ";
+            tpPctStr = "+1.5% (利益ロック+0.7%・動的トレーリング)";
+            slPctStr = "-1.2%";
+            rrRatioStr = "1.25 : 1";
+            holdingPeriodStr = "最大6バー (当日大引け手仕舞い・持ち越しゼロ)";
         } else if (isVWAP) {
             stratDisplayName = strategyMeta.displayName || "【戦略2】板気配VWAP反発押し目";
             tpPctStr = "+6.0%";
@@ -374,12 +391,12 @@ class NotificationManager {
             stratDisplayName = strategyMeta.displayName;
         }
 
-        const title = `⚡ 【約定エントリー】${info.name} (${info.code}) [${signalTime}]`;
+        const title = `⚡ 【約定エントリー】${info.name} (${info.code}) [${realtimeSignalTime}]`;
         const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
         const orderInvest = (orderCalc && orderCalc.investment) ? `¥${orderCalc.investment.toLocaleString()}` : "10万円以内";
-        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.025 : 1.06)).toFixed(1)}`;
-        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.984 : 0.975)).toFixed(1)}`;
-        const body = `約定日時: ${signalTime}\n採用戦略: ${stratDisplayName}\n約定買値: ¥${latest.close.toLocaleString()} | 株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr}) | ${holdingPeriodStr}`;
+        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.015 : 1.06)).toFixed(1)}`;
+        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.988 : 0.975)).toFixed(1)}`;
+        const body = `約定日時: ${realtimeSignalTime} (JST リアルタイム)\n採用戦略: ${stratDisplayName}\n約定買値: ¥${latest.close.toLocaleString()} | 株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr})\n保有期間: ${holdingPeriodStr} (東証日中取引)`;
 
         // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
         this.sendBrowserNotification(title, body, `buy-${info.code}`, "buy");
@@ -388,17 +405,17 @@ class NotificationManager {
         if (this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
             await this.sendDiscordNotification(
                 title,
-                `**${stratDisplayName}** により、**${info.name} (${info.code})** の自動エントリーが約定しました！\n⏰ **約定日時: ${signalTime}**`,
+                `**${stratDisplayName}** により、**${info.name} (${info.code})** の自動エントリーが約定しました！\n⏰ **約定日時: ${realtimeSignalTime} (JST リアルタイム)**`,
                 [
                     { name: "採用戦略", value: stratDisplayName, inline: false },
-                    { name: "約定日時", value: signalTime, inline: true },
+                    { name: "約定日時 (JST)", value: realtimeSignalTime, inline: true },
                     { name: "市場 / セクター", value: `${info.market || '東証'} / ${info.sector || '成長小型'}`, inline: true },
                     { name: "約定価格", value: `¥${latest.close.toLocaleString()}`, inline: true },
                     { name: "保有株数 (100株単元)", value: `${orderNote} (${orderInvest})`, inline: true },
                     { name: `利確目標 (${tpPctStr})`, value: tpStr, inline: true },
                     { name: `損切ライン (${slPctStr})`, value: slStr, inline: true },
                     { name: "想定保有期間", value: holdingPeriodStr, inline: true },
-                    { name: "リスクリワード比", value: rrRatioStr, inline: true }
+                    { name: "取引種別", value: "東証日中取引 (時間外取引なし)", inline: true }
                 ],
                 0x00FF88
             );
@@ -428,10 +445,11 @@ class NotificationManager {
         if (!trade) return;
         const name = symbolName || trade.symbol_name || trade.symbol;
         const isWin = trade.pnl_amount > 0;
-        const isTP = trade.exit_reason === "TAKE_PROFIT";
+        const isTP = trade.exit_reason === "TAKE_PROFIT" || trade.exit_reason === "TRAILING_PROFIT";
         const isSL = trade.exit_reason === "STOP_LOSS";
+        const isLock = trade.exit_reason === "PROFIT_LOCK_GUARD";
 
-        const getJst = window.getNowJSTString || function() {
+        const getJst = (typeof window !== "undefined" && window.getNowJSTString) ? window.getNowJSTString : function(includeSeconds = true) {
             try {
                 const formatter = new Intl.DateTimeFormat('ja-JP', {
                     timeZone: 'Asia/Tokyo',
@@ -442,18 +460,20 @@ class NotificationManager {
                 const parts = formatter.formatToParts(new Date());
                 const m = {};
                 parts.forEach(p => m[p.type] = p.value);
-                return `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`;
+                return includeSeconds
+                    ? `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}:${m.second}`
+                    : `${m.year}-${m.month}-${m.day} ${m.hour}:${m.minute}`;
             } catch (e) {
                 return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
             }
         };
 
-        // 決済時刻（JSTを最優先で取得）
+        // 決済時刻（リアルタイムJSTを最優先で取得）
         const exitTimeJst = trade.exit_time && !trade.exit_time.startsWith("0") ? trade.exit_time : getJst(true);
 
-        let eventEmoji = isTP ? "🎯 【利食い達成】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限決済】");
+        let eventEmoji = isTP ? "🎯 【利食い達成】" : (isLock ? "🛡️ 【利益ロックガード約定】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限手仕舞い】"));
         const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
-        const body = `決済日時: ${exitTimeJst}\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
+        const body = `決済日時: ${exitTimeJst} (JST リアルタイム)\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
 
         // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
         const toastType = isTP ? "profit" : (isSL ? "loss" : "info");
@@ -470,7 +490,7 @@ class NotificationManager {
                     { name: "実現損益額", value: `${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)`, inline: true },
                     { name: "買値 ➔ 決済値", value: `¥${Number(trade.entry_price).toLocaleString()} ➔ ¥${Number(trade.exit_price).toLocaleString()}`, inline: true },
                     { name: "保有株数", value: `${trade.shares}株`, inline: true },
-                    { name: "決済日時 (JST)", value: `${exitTimeJst}`, inline: true }
+                    { name: "決済日時 (JST リアルタイム)", value: `${exitTimeJst}`, inline: true }
                 ],
                 isWin ? 0x00FF88 : 0xFF5252
             );
