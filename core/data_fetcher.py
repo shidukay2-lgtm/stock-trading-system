@@ -114,11 +114,35 @@ class StockDataFetcher:
                 if new_df.index.tz is not None:
                     new_df.index = new_df.index.tz_convert("Asia/Tokyo")
 
+                # 東証の最新確定終値 / リアルタイム現在値 (fast_info.lastPrice) と同期
+                try:
+                    latest_fast_price = None
+                    if hasattr(ticker, "fast_info"):
+                        latest_fast_price = ticker.fast_info.get("lastPrice") or ticker.fast_info.get("regularMarketPrice")
+                    if latest_fast_price is not None and float(latest_fast_price) > 0 and not new_df.empty:
+                        corrected_price = round(float(latest_fast_price), 1)
+                        new_df.iloc[-1, new_df.columns.get_loc("Close")] = corrected_price
+                        new_df.iloc[-1, new_df.columns.get_loc("High")] = max(float(new_df.iloc[-1]["High"]), corrected_price)
+                        new_df.iloc[-1, new_df.columns.get_loc("Low")] = min(float(new_df.iloc[-1]["Low"]), corrected_price)
+                except Exception as ex:
+                    pass
+
                 # DBに保存（INSERT OR REPLACE でマージ）
                 db.save_candles(new_df, formatted_symbol, interval=interval)
 
                 # DBから最新の統合データを読み込み
                 df = db.load_candles(formatted_symbol, interval=interval)
+                
+                # DB読み込み後の最新足も確実に確定値と同期
+                try:
+                    if latest_fast_price is not None and float(latest_fast_price) > 0 and not df.empty:
+                        corrected_price = round(float(latest_fast_price), 1)
+                        df.iloc[-1, df.columns.get_loc("Close")] = corrected_price
+                        df.iloc[-1, df.columns.get_loc("High")] = max(float(df.iloc[-1]["High"]), corrected_price)
+                        df.iloc[-1, df.columns.get_loc("Low")] = min(float(df.iloc[-1]["Low"]), corrected_price)
+                except Exception:
+                    pass
+
                 if show_cool_ui:
                     console.print(f"[bold green][OK] 取得成功![/bold green] 最新ローソク足 (現在 {len(df)} 本蓄積) を更新しました。")
             else:

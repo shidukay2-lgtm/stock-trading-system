@@ -119,10 +119,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 同一足または決済直後の無限再エントリーを防ぐクールダウン管理
     const exitCooldownMap = {};
 
-    // --- 0. リアルタイム自動売買エンジン (AutoTrader・監視ON戦略のみ対象・東証日中開場時間帯のみ厳格執行) ---
+    // --- 0. リアルタイム自動売買エンジン (AutoTrader・開場前エントリー予約 & 東証開場時自動約定) ---
     async function processAutoTrading() {
         if (!symbolsData || !symbolsData.symbols) return;
-        if (!dataStore.autoTradingEnabled) return;
 
         const nowJstStr = getNowJSTString(true);
         const todayDateStr = nowJstStr.substring(0, 10); // YYYY-MM-DD
@@ -132,152 +131,162 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 開場中の大引け時間帯判定 (平日14:50〜15:30)
         const isMarketCloseTime = isMarketOpen && ((currentHour === 14 && currentMin >= 50) || (currentHour === 15 && currentMin <= 30));
 
-        // 1. 保有中ポジションの自動決済チェック (利食い / 損切り / 期限満了 / 持ち越し防止 / 大引け手仕舞い)
-        const currentPositions = [...dataStore.positions];
-        for (const pos of currentPositions) {
-            const sym = symbolsData.symbols[pos.symbol];
-            if (!sym || !sym.candles || sym.candles.length === 0) continue;
+        // 0. 東証開場時の予約注文（ORDER_PENDING）自動約定チェック
+        if (isMarketOpen && dataStore.positions && dataStore.positions.length > 0) {
+            for (const pos of dataStore.positions) {
+                if (pos.status === "ORDER_PENDING") {
+                    const sym = symbolsData.symbols[pos.symbol];
+                    const currentClose = (sym && sym.candles && sym.candles.length > 0) ? Number(sym.candles[sym.candles.length - 1].close) : pos.entryPrice;
+                    
+                    pos.status = "ACTIVE";
+                    pos.entryPrice = currentClose;
+                    pos.maxPrice = currentClose;
+                    pos.entryTime = getNowJSTString(true); // 開場時の約定日時
+                    pos.investmentAmount = Math.round(currentClose * pos.shares);
+                    pos.holdingBars = 1;
+                    pos.notes = (pos.notes || "") + ` ➔ 🟢 東証開場に伴い寄り付き成行約定 (買値: ¥${currentClose.toLocaleString()})`;
 
-            const latest = sym.candles[sym.candles.length - 1];
-            const currentClose = Number(latest.close);
-            const currentHigh = Number(latest.high) || currentClose;
-            const currentLow = Number(latest.low) || currentClose;
+                    const stratMeta = strategyRegistry.getStrategyMeta(pos.strategyName);
+                    const stratInstance = stratMeta ? stratMeta.instance : null;
+                    if (stratInstance) {
+                        pos.stopLossPrice = currentClose * (1 - (stratInstance.params.stopLossPct || 0.012));
+                        pos.takeProfitPrice = currentClose * (1 + (stratInstance.params.takeProfitPct || 0.015));
+                    }
 
-            // 保有中最高値の追跡
-            if (!pos.maxPrice || currentHigh > pos.maxPrice) {
-                pos.maxPrice = Math.max(pos.maxPrice || pos.entryPrice, currentHigh);
-            }
-
-            const peakGainPct = (pos.maxPrice - pos.entryPrice) / pos.entryPrice;
-            const curGainPct = (currentClose - pos.entryPrice) / pos.entryPrice;
-
-            // 保有バー数の正確な算出 (エントリー日時以降の新しいローソク足のみをカウント)
-            let barsCount = 1;
-            const entryPrefix = String(pos.entryTime || "").substring(0, 16);
-            let matchedIdx = -1;
-            for (let i = 0; i < sym.candles.length; i++) {
-                if (sym.candles[i].time >= entryPrefix) {
-                    matchedIdx = i;
-                    break;
-                }
-            }
-            if (matchedIdx >= 0) {
-                barsCount = Math.max(1, sym.candles.length - matchedIdx);
-            }
-            pos.holdingBars = barsCount;
-
-            const isScalpPos = (pos.strategyName && (pos.strategyName.includes("Scalping") || pos.strategyName.includes("mtf_scalping")));
-            const entryDateStr = String(pos.entryTime || "").substring(0, 10);
-            const isOvernight = Boolean(entryDateStr && entryDateStr < todayDateStr);
-
-            // 実時間経過分数の計算 (スキャルピングの高速イグジット用)
-            let elapsedMinutes = 0;
-            try {
-                const cleanEntryTime = pos.entryTime.replace(' ', 'T') + '+09:00';
-                const entryEpoch = new Date(cleanEntryTime).getTime();
-                const nowEpoch = Date.now();
-                if (!isNaN(entryEpoch) && entryEpoch > 0) {
-                    elapsedMinutes = Math.max(0, Math.floor((nowEpoch - entryEpoch) / (60 * 1000)));
-                }
-            } catch (e) {}
-
-            let exitPrice = null;
-            let exitReason = null;
-            let exitNote = "";
-
-            // --- 決済条件判定 (デイトレ・高速スキャルピング プロ仕様厳格ルール) ---
-            if (isScalpPos) {
-                // (A) 【重要】デイトレ日跨ぎ持ち越し防止の強制成行決済 (前日エントリーの持ち越しを即時排除)
-                if (isOvernight && isMarketOpen) {
-                    exitPrice = currentClose;
-                    exitReason = "DAY_OVER_TIMEOUT";
-                    exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
-                }
-                // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50〜15:30の大引け時に全手仕舞い)
-                else if (isMarketCloseTime) {
-                    exitPrice = currentClose;
-                    exitReason = "MARKET_CLOSE";
-                    exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
-                }
-                // (C) 基本利確目標到達 (+1.5% 達成)
-                else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
-                    exitPrice = Math.max(pos.takeProfitPrice, currentClose);
-                    exitReason = "TAKE_PROFIT";
-                    exitNote = `🎯 高速利食い約定 (+1.5%達成: ¥${exitPrice.toLocaleString()})`;
-                }
-                // (D) 【プロ仕様】動的トレーリング利食い (+1.0%以上伸びた後、ピーク最高値から0.3%反落で勝ち逃げ成行利食い)
-                else if (peakGainPct >= 0.010 && currentClose <= pos.maxPrice * 0.997) {
-                    exitPrice = Math.max(Math.round(pos.entryPrice * 1.002), currentClose);
-                    exitReason = "TRAILING_PROFIT";
-                    exitNote = `🎯 動的トレーリング勝ち逃げ利食い約定 (ピーク¥${Math.round(pos.maxPrice).toLocaleString()}から反落成行: ¥${exitPrice.toLocaleString()})`;
-                }
-                // (E) 【プロ仕様】プロフィットロック同値微益ガード (+0.7%到達後に買値同値まで押された場合の損失転落完全防止)
-                else if (peakGainPct >= 0.007 && currentLow <= pos.entryPrice * 1.001) {
-                    exitPrice = Math.round(pos.entryPrice * 1.001);
-                    exitReason = "PROFIT_LOCK_GUARD";
-                    exitNote = `🛡️ プロフィットロック同値ガード約定 (損失転落防止・買値撤退: ¥${exitPrice.toLocaleString()})`;
-                }
-                // (F) 超短期EMA5割れによるモメンタム失速手仕舞い (2バー以上経過・含み益+0.3%以上)
-                else if (barsCount >= 2 && latest.ema5 && currentClose < Number(latest.ema5) && curGainPct >= 0.003) {
-                    exitPrice = currentClose;
-                    exitReason = "MOMENTUM_EMA5_FADE";
-                    exitNote = `⚡ モメンタム失速・超短期EMA5割れ利食い約定 (微益確保: ¥${exitPrice.toLocaleString()})`;
-                }
-                // (G) 通常損切り (-1.2% 到達)
-                else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
-                    exitPrice = Math.min(pos.stopLossPrice, currentClose);
-                    exitReason = "STOP_LOSS";
-                    exitNote = `🛑 高速損切り約定 (-1.2%到達: ¥${exitPrice.toLocaleString()})`;
-                }
-                // (H) 保有期限満了 (6バー経過・約30分完結)
-                else if (pos.holdingBars >= 6 || elapsedMinutes >= 180) {
-                    exitPrice = currentClose;
-                    exitReason = "TIMEOUT";
-                    exitNote = `⌛ デイトレ保有期限満了決済 (当日6バー経過: ¥${exitPrice.toLocaleString()})`;
-                }
-            } else {
-                // スイング戦略 (戦略1 / 戦略2) の決済ロジック
-                if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
-                    exitPrice = Math.max(pos.takeProfitPrice, currentClose);
-                    exitReason = "TAKE_PROFIT";
-                    exitNote = `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
-                } else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
-                    exitPrice = Math.min(pos.stopLossPrice, currentClose);
-                    exitReason = "STOP_LOSS";
-                    exitNote = `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
-                } else if (pos.holdingBars >= 15) {
-                    exitPrice = currentClose;
-                    exitReason = "TIMEOUT";
-                    exitNote = `⌛ スイング保有期限満了決済 (15バー/3営業日経過: ¥${exitPrice.toLocaleString()})`;
-                }
-            }
-
-            if (exitPrice !== null && exitReason !== null) {
-                console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 戦略: ${pos.strategyName}, 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
-                
-                // クールダウン登録（同一足・直近5分での即時再エントリーを防止）
-                exitCooldownMap[pos.symbol] = {
-                    candleTime: latest.time,
-                    timestamp: Date.now(),
-                    exitReason: exitReason
-                };
-
-                const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason} #${pos.strategyName || 'HighWin'}`);
-                if (closedTrade) {
-                    notifier.notifyTradeExit(closedTrade, pos.symbolName);
+                    await dataStore.updatePosition(pos);
+                    console.log(`[AutoTrade] 予約注文が開場に伴い約定しました: ${pos.symbolName} (${pos.symbol}) - 買値: ¥${pos.entryPrice}, 約定日時: ${pos.entryTime}`);
+                    notifier.showToast("buy", `🔔 【開場時約定】${pos.symbolName} (${pos.symbol})`, `東証開場に伴い予約注文が約定しました！(買値: ¥${pos.entryPrice.toLocaleString()} / ${pos.shares}株)`, 7000);
                 }
             }
         }
 
-        // 2. 新規買いシグナルの自動エントリーチェック (監視ONになっている戦略のみを巡回)
-        // 【最重要ルール】日本株式取引所（東証）の日中開場時間帯（平日 09:00〜11:30 / 12:30〜15:30）のみ新規エントリーを許可
-        // 時間外取引（夜間・土日・祝日・昼休み）のエントリーは完全禁止
-        if (!isTSEMarketOpenNow()) {
-            return; // 東証閉場中のため新規自動エントリーを完全停止
+        if (!dataStore.autoTradingEnabled) return;
+
+        // 1. 保有中ポジションの自動決済チェック (開場中のみ実行)
+        if (isMarketOpen) {
+            const currentPositions = [...dataStore.positions];
+            for (const pos of currentPositions) {
+                if (pos.status === "ORDER_PENDING") continue; // 予約注文は決済対象外
+
+                const sym = symbolsData.symbols[pos.symbol];
+                if (!sym || !sym.candles || sym.candles.length === 0) continue;
+
+                const latest = sym.candles[sym.candles.length - 1];
+                const currentClose = Number(latest.close);
+                const currentHigh = Number(latest.high) || currentClose;
+                const currentLow = Number(latest.low) || currentClose;
+
+                // 保有中最高値の追跡
+                if (!pos.maxPrice || currentHigh > pos.maxPrice) {
+                    pos.maxPrice = Math.max(pos.maxPrice || pos.entryPrice, currentHigh);
+                }
+
+                const peakGainPct = (pos.maxPrice - pos.entryPrice) / pos.entryPrice;
+                const curGainPct = (currentClose - pos.entryPrice) / pos.entryPrice;
+
+                // 保有バー数の正確な算出
+                let barsCount = 1;
+                const entryPrefix = String(pos.entryTime || "").substring(0, 16);
+                let matchedIdx = -1;
+                for (let i = 0; i < sym.candles.length; i++) {
+                    if (sym.candles[i].time >= entryPrefix) {
+                        matchedIdx = i;
+                        break;
+                    }
+                }
+                if (matchedIdx >= 0) {
+                    barsCount = Math.max(1, sym.candles.length - matchedIdx);
+                }
+                pos.holdingBars = barsCount;
+
+                const isScalpPos = (pos.strategyName && (pos.strategyName.includes("Scalping") || pos.strategyName.includes("mtf_scalping")));
+                const entryDateStr = String(pos.entryTime || "").substring(0, 10);
+                const isOvernight = Boolean(entryDateStr && entryDateStr < todayDateStr);
+
+                // 実時間経過分数の計算
+                let elapsedMinutes = 0;
+                try {
+                    const cleanEntryTime = pos.entryTime.replace(' ', 'T') + '+09:00';
+                    const entryEpoch = new Date(cleanEntryTime).getTime();
+                    const nowEpoch = Date.now();
+                    if (!isNaN(entryEpoch) && entryEpoch > 0) {
+                        elapsedMinutes = Math.max(0, Math.floor((nowEpoch - entryEpoch) / (60 * 1000)));
+                    }
+                } catch (e) {}
+
+                let exitPrice = null;
+                let exitReason = null;
+                let exitNote = "";
+
+                // --- 決済条件判定 (デイトレ・高速スキャルピング プロ仕様厳格ルール) ---
+                if (isScalpPos) {
+                    if (isOvernight && isMarketOpen) {
+                        exitPrice = currentClose;
+                        exitReason = "DAY_OVER_TIMEOUT";
+                        exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
+                    } else if (isMarketCloseTime) {
+                        exitPrice = currentClose;
+                        exitReason = "MARKET_CLOSE";
+                        exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
+                    } else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
+                        exitPrice = Math.max(pos.takeProfitPrice, currentClose);
+                        exitReason = "TAKE_PROFIT";
+                        exitNote = `🎯 高速利食い約定 (+1.5%達成: ¥${exitPrice.toLocaleString()})`;
+                    } else if (peakGainPct >= 0.010 && currentClose <= pos.maxPrice * 0.997) {
+                        exitPrice = Math.max(Math.round(pos.entryPrice * 1.002), currentClose);
+                        exitReason = "TRAILING_PROFIT";
+                        exitNote = `🎯 動的トレーリング勝ち逃げ利食い約定 (ピーク¥${Math.round(pos.maxPrice).toLocaleString()}から反落成行: ¥${exitPrice.toLocaleString()})`;
+                    } else if (peakGainPct >= 0.007 && currentLow <= pos.entryPrice * 1.001) {
+                        exitPrice = Math.round(pos.entryPrice * 1.001);
+                        exitReason = "PROFIT_LOCK_GUARD";
+                        exitNote = `🛡️ プロフィットロック同値ガード約定 (損失転落防止・買値撤退: ¥${exitPrice.toLocaleString()})`;
+                    } else if (barsCount >= 2 && latest.ema5 && currentClose < Number(latest.ema5) && curGainPct >= 0.003) {
+                        exitPrice = currentClose;
+                        exitReason = "MOMENTUM_EMA5_FADE";
+                        exitNote = `⚡ モメンタム失速・超短期EMA5割れ利食い約定 (微益確保: ¥${exitPrice.toLocaleString()})`;
+                    } else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
+                        exitPrice = Math.min(pos.stopLossPrice, currentClose);
+                        exitReason = "STOP_LOSS";
+                        exitNote = `🛑 高速損切り約定 (-1.2%到達: ¥${exitPrice.toLocaleString()})`;
+                    } else if (pos.holdingBars >= 6 || elapsedMinutes >= 180) {
+                        exitPrice = currentClose;
+                        exitReason = "TIMEOUT";
+                        exitNote = `⌛ デイトレ保有期限満了決済 (当日6バー経過: ¥${exitPrice.toLocaleString()})`;
+                    }
+                } else {
+                    if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
+                        exitPrice = Math.max(pos.takeProfitPrice, currentClose);
+                        exitReason = "TAKE_PROFIT";
+                        exitNote = `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
+                    } else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
+                        exitPrice = Math.min(pos.stopLossPrice, currentClose);
+                        exitReason = "STOP_LOSS";
+                        exitNote = `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
+                    } else if (pos.holdingBars >= 15) {
+                        exitPrice = currentClose;
+                        exitReason = "TIMEOUT";
+                        exitNote = `⌛ スイング保有期限満了決済 (15バー/3営業日経過: ¥${exitPrice.toLocaleString()})`;
+                    }
+                }
+
+                if (exitPrice !== null && exitReason !== null) {
+                    console.log(`[AutoTrade] 自動決済執行: ${pos.symbolName} (${pos.symbol}) - 戦略: ${pos.strategyName}, 理由: ${exitReason}, 決済価格: ¥${exitPrice}`);
+                    exitCooldownMap[pos.symbol] = {
+                        candleTime: latest.time,
+                        timestamp: Date.now(),
+                        exitReason: exitReason
+                    };
+                    const closedTrade = await dataStore.closePosition(pos.symbol, exitPrice, exitReason, exitNote, `#AUTO #${exitReason} #${pos.strategyName || 'HighWin'}`);
+                    if (closedTrade) {
+                        notifier.notifyTradeExit(closedTrade, pos.symbolName);
+                    }
+                }
+            }
         }
 
+        // 2. 新規買いシグナルのエントリー / 開場前エントリー予約チェック
         const enabledStrategies = strategyRegistry.getEnabledStrategies();
-        if (enabledStrategies.length === 0) return; // 全てOFFなら新規エントリー停止
+        if (enabledStrategies.length === 0) return;
 
         const maxConcurrentPositions = 3; // 同時保有上限 (最大3銘柄分散)
         if (dataStore.positions.length < maxConcurrentPositions) {
@@ -288,21 +297,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 const sym = symbolsData.symbols[code];
                 const activePos = dataStore.positions.find(p => p.symbol === code);
-                if (activePos) continue; // すでに保有中ならスキップ
+                if (activePos) continue; // すでに保有中または予約中ならスキップ
 
                 // 勝率70%以上フィルターチェック
                 if (dataStore.filter70PlusOnly && !sym.info.is_win_rate_70_plus && (sym.info.max_win_rate < 70.0)) {
-                    continue; // 70%未満はスキップ
+                    continue;
                 }
 
-                // クールダウンチェック (同一足または決済から5分以内は再エントリー禁止)
+                // クールダウンチェック
                 const lastCandle = sym.candles && sym.candles.length > 0 ? sym.candles[sym.candles.length - 1] : null;
                 const lastExit = exitCooldownMap[code];
                 if (lastExit && lastCandle) {
                     const isSameCandle = lastExit.candleTime === lastCandle.time;
                     const isWithin5Min = (Date.now() - lastExit.timestamp) < (5 * 60 * 1000);
                     if (isSameCandle || isWithin5Min) {
-                        continue; // クールダウン中
+                        continue;
                     }
                 }
 
@@ -319,27 +328,51 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const orderCalc = stratInstance.calculateOrderSize(latest.close, dataStore.cash, dataStore.compoundingEnabled);
                         if (orderCalc.shares > 0 && orderCalc.investment <= dataStore.cash) {
                             const entryPrice = latest.close;
-                            // リアルタイム日本標準時 (JST) での約定記録
                             const realtimeEntryTime = getNowJSTString(true);
-                            const pos = {
-                                symbol: sym.info.code,
-                                symbolName: sym.info.name,
-                                entryTime: realtimeEntryTime,
-                                entryPrice: entryPrice,
-                                maxPrice: entryPrice,
-                                shares: orderCalc.shares,
-                                investmentAmount: orderCalc.investment,
-                                stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.012))),
-                                takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.015))),
-                                strategyName: stratMeta.name,
-                                strategyDisplayName: stratMeta.displayName,
-                                holdingBars: 1,
-                                notes: `🤖 リアルタイム自動売買エントリー約定 [${stratMeta.shortName || stratMeta.name}] (${orderCalc.note})`
-                            };
 
-                            console.log(`[AutoTrade] 自動エントリー約定 (東証開場中): ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}, 約定日時(JST): ${pos.entryTime}`);
-                            await dataStore.addPosition(pos);
-                            notifier.notifyBuySignal(sym.info, latest, orderCalc, stratMeta);
+                            if (isMarketOpen) {
+                                // 東証開場中: 即時自動約定
+                                const pos = {
+                                    symbol: sym.info.code,
+                                    symbolName: sym.info.name,
+                                    entryTime: realtimeEntryTime,
+                                    entryPrice: entryPrice,
+                                    maxPrice: entryPrice,
+                                    shares: orderCalc.shares,
+                                    investmentAmount: orderCalc.investment,
+                                    stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.012))),
+                                    takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.015))),
+                                    strategyName: stratMeta.name,
+                                    strategyDisplayName: stratMeta.displayName,
+                                    holdingBars: 1,
+                                    status: "ACTIVE",
+                                    notes: `🤖 リアルタイム自動売買エントリー約定 [${stratMeta.shortName || stratMeta.name}] (${orderCalc.note})`
+                                };
+                                console.log(`[AutoTrade] 自動エントリー約定 (東証開場中): ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 買値: ¥${pos.entryPrice}, 株数: ${pos.shares}`);
+                                await dataStore.addPosition(pos);
+                                notifier.notifyBuySignal(sym.info, latest, orderCalc, stratMeta);
+                            } else {
+                                // 東証閉場時間外: 開場前エントリー予約（次回開場時に自動約定）
+                                const pos = {
+                                    symbol: sym.info.code,
+                                    symbolName: sym.info.name,
+                                    entryTime: "🕒 開場時約定待機",
+                                    orderPlacedTime: realtimeEntryTime,
+                                    entryPrice: entryPrice,
+                                    maxPrice: entryPrice,
+                                    shares: orderCalc.shares,
+                                    investmentAmount: orderCalc.investment,
+                                    stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.012))),
+                                    takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.015))),
+                                    strategyName: stratMeta.name,
+                                    strategyDisplayName: stratMeta.displayName,
+                                    holdingBars: 0,
+                                    status: "ORDER_PENDING",
+                                    notes: `🕒 開場前自動エントリー予約 [${stratMeta.shortName || stratMeta.name}] (次回東証開場時に成行約定)`
+                                };
+                                console.log(`[AutoTrade] 開場前エントリー予約受付: ${pos.symbolName} (${pos.symbol}) - 採用戦略: ${stratMeta.displayName}, 予想買値: ¥${pos.entryPrice}`);
+                                await dataStore.addPosition(pos);
+                            }
                             break; // 1銘柄につき1エントリー
                         }
                     }
@@ -587,6 +620,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             let detailsHtml = "";
 
             if (activePos) {
+                const isPending = activePos.status === "ORDER_PENDING";
                 const entryPrice = Number(activePos.entryPrice) || currentPrice;
                 const posShares = Number(activePos.shares) || 100;
                 const pnl = (currentPrice - entryPrice) * posShares;
@@ -597,20 +631,37 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const entryTimeStr = String(activePos.entryTime || '-');
                 const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
-                statusBadgeHtml = `<span class="badge-status badge-holding" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid #00e5ff;">💼 保有中</span>`;
-                detailsHtml = `
-                    <div class="chip-growth" style="font-size: 12px; color: var(--text-main); margin-top: 2px;">
-                        買値 ¥${entryPrice.toLocaleString()} (${posShares}株) | <b style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</b>
-                    </div>
-                    <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px; display: flex; gap: 8px;">
-                        <span>🎯 利確: ¥${tpStr}</span>
-                        <span style="color:var(--accent-red)">🛑 損切: ¥${slStr}</span>
-                    </div>
-                    <div style="font-size: 11px; color: #00e5ff; margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
-                        <span>⏰ ${entryTimeStr} (保有 ${activePos.holdingBars || 1}本)</span>
-                        ${stratBadge}
-                    </div>
-                `;
+                if (isPending) {
+                    statusBadgeHtml = `<span class="badge-status" style="background: rgba(255, 215, 64, 0.2); color: #ffd740; border: 1px solid #ffd740;">🕒 予約注文中</span>`;
+                    detailsHtml = `
+                        <div class="chip-growth" style="font-size: 12px; color: #ffd740; margin-top: 2px;">
+                            開場時約定待機: 予想 ¥${entryPrice.toLocaleString()} (${posShares}株)
+                        </div>
+                        <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px; display: flex; gap: 8px;">
+                            <span>🎯 想定利確: ¥${tpStr}</span>
+                            <span style="color:var(--accent-red)">🛑 損切: ¥${slStr}</span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>🕒 次回開場時に自動約定</span>
+                            ${stratBadge}
+                        </div>
+                    `;
+                } else {
+                    statusBadgeHtml = `<span class="badge-status badge-holding" style="background: rgba(0, 229, 255, 0.2); color: #00e5ff; border: 1px solid #00e5ff;">💼 保有中</span>`;
+                    detailsHtml = `
+                        <div class="chip-growth" style="font-size: 12px; color: var(--text-main); margin-top: 2px;">
+                            買値 ¥${entryPrice.toLocaleString()} (${posShares}株) | <b style="color:${pnlColor}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</b>
+                        </div>
+                        <div style="font-size: 11px; color: var(--accent-green); margin-top: 2px; display: flex; gap: 8px;">
+                            <span>🎯 利確: ¥${tpStr}</span>
+                            <span style="color:var(--accent-red)">🛑 損切: ¥${slStr}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #00e5ff; margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>⏰ ${entryTimeStr} (保有 ${activePos.holdingBars || 1}本)</span>
+                            ${stratBadge}
+                        </div>
+                    `;
+                }
             } else if (isBuyActive) {
                 statusBadgeHtml = `<span class="badge-status badge-buy">🔔 BUY点灯中</span>`;
                 detailsHtml = `
@@ -897,6 +948,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const curIntervalName = intervalNames[currentInterval] || currentInterval;
 
         if (activePos) {
+            const isPending = activePos.status === "ORDER_PENDING";
             const entryPrice = Number(activePos.entryPrice) || currentClose;
             const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.015 : 1.06));
             const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.988 : 0.975));
@@ -907,29 +959,47 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             const distTp = tpPrice - currentClose;
             const distSl = currentClose - slPrice;
-            const holdingBars = activePos.holdingBars || 1;
+            const holdingBars = activePos.holdingBars || (isPending ? 0 : 1);
             const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 6 : 15;
             const remainBars = Math.max(0, maxBars - holdingBars);
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
-            hud.innerHTML = `
-                <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
-                    📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
-                </span>
-                <span class="chip-badge" style="background: ${pnl >= 0 ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 82, 82, 0.15)'}; color: ${pnlColor}; border: 1px solid ${pnlColor}; font-weight: 700;">
-                    💼 損益: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
-                </span>
-                <span class="chip-badge" style="background: rgba(0, 230, 118, 0.12); color: var(--accent-green); border: 1px solid var(--accent-green);">
-                    🎯 利確目標 ¥${tpPrice.toFixed(1)} (残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円)
-                </span>
-                <span class="chip-badge" style="background: rgba(255, 82, 82, 0.12); color: var(--accent-red); border: 1px solid var(--accent-red);">
-                    🛑 損切 ¥${slPrice.toFixed(1)} (幅 -${distSl.toFixed(1)}円)
-                </span>
-                <span class="chip-badge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid #00e5ff;">
-                    ⏰ 決済期限: ${holdingBars}/${maxBars}本 (残 ${remainBars}本)
-                </span>
-                ${stratBadge}
-            `;
+            if (isPending) {
+                hud.innerHTML = `
+                    <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
+                        📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
+                    </span>
+                    <span class="chip-badge" style="background: rgba(255, 215, 64, 0.2); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
+                        🕒 注文予約中 (次回開場時 成行約定待機)
+                    </span>
+                    <span class="chip-badge" style="background: rgba(0, 230, 118, 0.12); color: var(--accent-green); border: 1px solid var(--accent-green);">
+                        🎯 想定利確 ¥${tpPrice.toFixed(1)}
+                    </span>
+                    <span class="chip-badge" style="background: rgba(255, 82, 82, 0.12); color: var(--accent-red); border: 1px solid var(--accent-red);">
+                        🛑 想定損切 ¥${slPrice.toFixed(1)}
+                    </span>
+                    ${stratBadge}
+                `;
+            } else {
+                hud.innerHTML = `
+                    <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
+                        📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円</span>)
+                    </span>
+                    <span class="chip-badge" style="background: ${pnl >= 0 ? 'rgba(0, 230, 118, 0.15)' : 'rgba(255, 82, 82, 0.15)'}; color: ${pnlColor}; border: 1px solid ${pnlColor}; font-weight: 700;">
+                        💼 損益: ${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)
+                    </span>
+                    <span class="chip-badge" style="background: rgba(0, 230, 118, 0.12); color: var(--accent-green); border: 1px solid var(--accent-green);">
+                        🎯 利確目標 ¥${tpPrice.toFixed(1)} (残 ${distTp >= 0 ? '+' : ''}${distTp.toFixed(1)}円)
+                    </span>
+                    <span class="chip-badge" style="background: rgba(255, 82, 82, 0.12); color: var(--accent-red); border: 1px solid var(--accent-red);">
+                        🛑 損切 ¥${slPrice.toFixed(1)} (幅 -${distSl.toFixed(1)}円)
+                    </span>
+                    <span class="chip-badge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid #00e5ff;">
+                        ⏰ 決済期限: ${holdingBars}/${maxBars}本 (残 ${remainBars}本)
+                    </span>
+                    ${stratBadge}
+                `;
+            }
         } else {
             const simTpPct = isStrategy3 ? 0.015 : 0.060;
             const simSlPct = isStrategy3 ? 0.012 : 0.025;
@@ -1035,7 +1105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const winRate = (metrics && metrics.win_rate_pct) ? metrics.win_rate_pct : 68.5;
 
         if (activePos) {
-            // 保有中
+            const isPending = activePos.status === "ORDER_PENDING";
             const entryPrice = Number(activePos.entryPrice) || currentClose;
             const posShares = Number(activePos.shares) || 100;
             const pnl = (currentClose - entryPrice) * posShares;
@@ -1049,40 +1119,75 @@ document.addEventListener("DOMContentLoaded", async () => {
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
             const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 8 : 15;
 
-            banner.className = "signal-alert-banner";
-            banner.style.borderColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
-            banner.innerHTML = `
-                <div class="signal-banner-left">
-                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
-                        <span class="signal-tag" style="background:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; color: #0b0f19; font-weight:700;">
-                            💼 ポジション保有中 (自動売買監視中)
-                        </span>
-                        <span class="chip-badge" style="background:rgba(0,229,255,0.2); color:#00e5ff; border:1px solid #00e5ff;">
-                            ⏰ エントリー: ${entryTimeStr}
-                        </span>
-                        <span class="chip-badge" style="background:rgba(255,255,255,0.1); color:var(--text-muted);">
-                            保有バー数: ${activePos.holdingBars || 1} / ${maxBars}本
-                        </span>
-                        ${stratBadge}
+            if (isPending) {
+                banner.className = "signal-alert-banner";
+                banner.style.borderColor = "#ffd740";
+                banner.innerHTML = `
+                    <div class="signal-banner-left">
+                        <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
+                            <span class="signal-tag" style="background:#ffd740; color: #0b0f19; font-weight:700;">
+                                🕒 開場前エントリー予約中 (東証開場時に成行約定)
+                            </span>
+                            <span class="chip-badge" style="background:rgba(255,215,64,0.2); color:#ffd740; border:1px solid #ffd740;">
+                                ⏰ 予約発注日時: ${activePos.orderPlacedTime || '-'}
+                            </span>
+                            ${stratBadge}
+                        </div>
+                        <div class="signal-title">${info.name} (${info.code}) - 東証開場時 (平日09:00/12:30) 約定スタンバイ中</div>
+                        <div class="signal-metrics-row">
+                            <div class="sig-metric"><span class="sig-metric-label">予想約定値</span><span class="sig-metric-value val-yellow">¥${entryPrice.toLocaleString()}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">現在値</span><span class="sig-metric-value">¥${currentClose.toLocaleString()}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">予約株数 (単元)</span><span class="sig-metric-value">${posShares} 株</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">想定投資額</span><span class="sig-metric-value val-cyan">¥${Number(activePos.investmentAmount).toLocaleString()}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">想定利確目標</span><span class="sig-metric-value val-green">¥${tpValNum.toFixed(1)}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">想定損切目標</span><span class="sig-metric-value val-red">¥${slValNum.toFixed(1)}</span></div>
+                        </div>
                     </div>
-                    <div class="signal-title">${info.name} (${info.code}) - リアルタイム保有状況</div>
-                    <div class="signal-metrics-row">
-                        <div class="sig-metric"><span class="sig-metric-label">買値</span><span class="sig-metric-value val-cyan">¥${entryPrice.toLocaleString()}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">現在値</span><span class="sig-metric-value">¥${currentClose.toLocaleString()}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">株数 (単元)</span><span class="sig-metric-value">${posShares} 株</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">評価損益 (%)</span><span class="sig-metric-value ${colorClass}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">利確目標</span><span class="sig-metric-value val-green">¥${tpValNum.toFixed(1)} (残 ${toTp >= 0 ? '+' : ''}${toTp.toFixed(1)}円)</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">損切目標</span><span class="sig-metric-value val-red">¥${slValNum.toFixed(1)} (幅 ${toSl.toFixed(1)}円)</span></div>
+                    <div class="signal-actions">
+                        <button class="btn btn-secondary" style="color:var(--accent-red); border-color:rgba(255,82,82,0.4);" id="btn-cancel-reservation">❌ 予約を取り消す</button>
                     </div>
-                </div>
-                <div class="signal-actions">
-                    <button class="btn btn-danger" id="btn-manual-exit">🚪 今すぐ手動決済</button>
-                </div>
-            `;
+                `;
 
-            const btnManualExit = document.getElementById("btn-manual-exit");
-            if (btnManualExit) {
-                btnManualExit.addEventListener("click", () => openExitModal(activePos, currentClose));
+                const btnCancel = document.getElementById("btn-cancel-reservation");
+                if (btnCancel) {
+                    btnCancel.addEventListener("click", () => window.appCancelOrder(activePos.symbol));
+                }
+            } else {
+                banner.className = "signal-alert-banner";
+                banner.style.borderColor = pnl >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+                banner.innerHTML = `
+                    <div class="signal-banner-left">
+                        <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
+                            <span class="signal-tag" style="background:${pnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}; color: #0b0f19; font-weight:700;">
+                                💼 ポジション保有中 (自動売買監視中)
+                            </span>
+                            <span class="chip-badge" style="background:rgba(0,229,255,0.2); color:#00e5ff; border:1px solid #00e5ff;">
+                                ⏰ エントリー: ${entryTimeStr}
+                            </span>
+                            <span class="chip-badge" style="background:rgba(255,255,255,0.1); color:var(--text-muted);">
+                                保有バー数: ${activePos.holdingBars || 1} / ${maxBars}本
+                            </span>
+                            ${stratBadge}
+                        </div>
+                        <div class="signal-title">${info.name} (${info.code}) - リアルタイム保有状況</div>
+                        <div class="signal-metrics-row">
+                            <div class="sig-metric"><span class="sig-metric-label">買値</span><span class="sig-metric-value val-cyan">¥${entryPrice.toLocaleString()}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">現在値</span><span class="sig-metric-value">¥${currentClose.toLocaleString()}</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">株数 (単元)</span><span class="sig-metric-value">${posShares} 株</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">評価損益 (%)</span><span class="sig-metric-value ${colorClass}">${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">利確目標</span><span class="sig-metric-value val-green">¥${tpValNum.toFixed(1)} (残 ${toTp >= 0 ? '+' : ''}${toTp.toFixed(1)}円)</span></div>
+                            <div class="sig-metric"><span class="sig-metric-label">損切目標</span><span class="sig-metric-value val-red">¥${slValNum.toFixed(1)} (幅 ${toSl.toFixed(1)}円)</span></div>
+                        </div>
+                    </div>
+                    <div class="signal-actions">
+                        <button class="btn btn-danger" id="btn-manual-exit">🚪 今すぐ手動決済</button>
+                    </div>
+                `;
+
+                const btnManualExit = document.getElementById("btn-manual-exit");
+                if (btnManualExit) {
+                    btnManualExit.addEventListener("click", () => openExitModal(activePos, currentClose));
+                }
             }
 
         } else if (latest.isBuySignal) {
@@ -1214,8 +1319,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         const modal = document.getElementById("entry-modal");
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const activeMeta = strategyRegistry.getActiveStrategyMeta();
+        const isMarketOpen = isTSEMarketOpenNow();
 
-        document.getElementById("entry-modal-symbol").innerHTML = `${info.name} (${info.code}) <span class="chip-badge" style="background:var(--primary); color:#0b0f19;">⏰ 点灯: ${signalTime}</span> ${getStrategyBadgeHtml(activeMeta.name)}`;
+        const btnConfirm = document.getElementById("btn-confirm-entry");
+        if (btnConfirm) {
+            btnConfirm.innerText = isMarketOpen ? "💡 この銘柄を成行エントリー発注" : "🕒 開場時成行約定予約を発注 (次回開場時に約定)";
+            btnConfirm.style.background = isMarketOpen ? "var(--accent-green)" : "#ffd740";
+            btnConfirm.style.color = "#0b0f19";
+        }
+
+        const marketTimeNote = isMarketOpen 
+            ? `<span class="chip-badge" style="background:rgba(0,230,118,0.2); color:var(--accent-green);">🟢 東証開場中 (即時約定)</span>`
+            : `<span class="chip-badge" style="background:rgba(255,215,64,0.2); color:#ffd740; border:1px solid #ffd740;">🕒 時間外予約 (次回開場時 09:00/12:30 に自動約定)</span>`;
+
+        document.getElementById("entry-modal-symbol").innerHTML = `
+            ${info.name} (${info.code}) <span class="chip-badge" style="background:var(--primary); color:#0b0f19;">⏰ 点灯: ${signalTime}</span> ${getStrategyBadgeHtml(activeMeta.name)}
+            <div style="margin-top:6px;">${marketTimeNote}</div>
+        `;
         document.getElementById("entry-modal-price").value = latest.close;
         document.getElementById("entry-modal-shares").value = orderCalc.shares;
         document.getElementById("entry-modal-invest").innerText = `¥${orderCalc.investment.toLocaleString()} (単元株・100株単位)`;
@@ -1223,12 +1343,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         modal.classList.add("active");
 
         document.getElementById("btn-confirm-entry").onclick = async () => {
-            // 日本株式取引所 (東証) の日中取引時間チェック
-            if (!isTSEMarketOpenNow()) {
-                alert("⚠️ 現在は日本株式取引所（東証）の取引時間外です。\n\n【東証正規取引時間】\n・平日 前場: 09:00 〜 11:30\n・平日 後場: 12:30 〜 15:30\n\n※ 時間外取引（夜間・土日・祝日・昼休み）のエントリーはできません。開場中にご注文ください。");
-                return;
-            }
-
             const price = parseFloat(document.getElementById("entry-modal-price").value);
             const shares = parseInt(document.getElementById("entry-modal-shares").value);
             
@@ -1243,12 +1357,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
 
+            const nowOpen = isTSEMarketOpenNow();
             const realtimeEntryTime = getNowJSTString(true);
 
             const pos = {
                 symbol: info.code,
                 symbolName: info.name,
-                entryTime: realtimeEntryTime, // リアルタイム日本標準時(JST)約定日時
+                entryTime: nowOpen ? realtimeEntryTime : "🕒 開場時約定待機",
+                orderPlacedTime: realtimeEntryTime,
                 entryPrice: price,
                 maxPrice: price,
                 shares: shares,
@@ -1257,13 +1373,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                 takeProfitPrice: price * (1 + (activeStrategy.params.takeProfitPct || 0.015)),
                 strategyName: activeMeta.name,
                 strategyDisplayName: activeMeta.displayName,
-                holdingBars: 0,
-                notes: document.getElementById("entry-modal-notes").value
+                holdingBars: nowOpen ? 1 : 0,
+                status: nowOpen ? "ACTIVE" : "ORDER_PENDING",
+                notes: (document.getElementById("entry-modal-notes").value || "") + (nowOpen ? "" : " [🕒 時間外予約注文・次回東証開場時に成行約定]")
             };
 
             await dataStore.addPosition(pos);
             modal.classList.remove("active");
-            notifier.showToast("buy", `⚡ 【手動約定】${pos.symbolName} (${pos.symbol})`, `買値 ¥${pos.entryPrice.toLocaleString()} (${pos.shares}株・¥${pos.investmentAmount.toLocaleString()}) でエントリーしました。`, 6000);
+
+            if (nowOpen) {
+                notifier.showToast("buy", `⚡ 【手動約定】${pos.symbolName} (${pos.symbol})`, `買値 ¥${pos.entryPrice.toLocaleString()} (${pos.shares}株・¥${pos.investmentAmount.toLocaleString()}) でエントリーしました。`, 6000);
+            } else {
+                notifier.showToast("info", `🕒 【予約注文完了】${pos.symbolName} (${pos.symbol})`, `開場前エントリー予約を受け付けました。東証開場（平日09:00または12:30）のタイミングで自動的に成行約定されます。`, 7000);
+            }
+
             renderSymbolSelector();
             updateGlobalSignalTicker();
             selectSymbol(currentSymbolCode);
@@ -1320,18 +1443,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         tbody.innerHTML = "";
 
         const posCount = dataStore.positions ? dataStore.positions.length : 0;
+        const pendingCount = dataStore.positions ? dataStore.positions.filter(p => p.status === "ORDER_PENDING").length : 0;
+        const activeCount = posCount - pendingCount;
+
         if (countBadge) {
-            countBadge.innerText = `保有: ${posCount}件 / 最大3枠 (30万円)`;
+            countBadge.innerText = pendingCount > 0 
+                ? `保有: ${activeCount}件 + 予約中: ${pendingCount}件 / 最大3枠 (30万円)`
+                : `保有: ${posCount}件 / 最大3枠 (30万円)`;
             countBadge.style.color = posCount > 0 ? "#00e5ff" : "var(--text-muted)";
             countBadge.style.borderColor = posCount > 0 ? "#00e5ff" : "rgba(255,255,255,0.15)";
         }
 
         if (posCount === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:20px;">現在保有中のポジションはありません（リアルタイム監視中）</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:20px;">現在保有中または予約中のポジションはありません（リアルタイム監視中）</td></tr>`;
             return;
         }
 
         dataStore.positions.forEach(pos => {
+            const isPending = pos.status === "ORDER_PENDING";
             const sym = symbolsData && symbolsData.symbols ? symbolsData.symbols[pos.symbol] : null;
             const currentPrice = (sym && sym.candles && sym.candles.length > 0) ? sym.candles[sym.candles.length - 1].close : pos.entryPrice;
             const pnl = (currentPrice - pos.entryPrice) * pos.shares;
@@ -1342,31 +1471,60 @@ document.addEventListener("DOMContentLoaded", async () => {
             // 経過時間の計算
             let elapsedStr = "";
             try {
-                const cleanEntryTime = pos.entryTime.replace(' ', 'T') + '+09:00';
-                const entryEpoch = new Date(cleanEntryTime).getTime();
-                const diffMin = Math.max(0, Math.floor((Date.now() - entryEpoch) / (60 * 1000)));
-                if (diffMin < 60) {
-                    elapsedStr = `(${diffMin}分前)`;
-                } else {
-                    const diffHours = Math.floor(diffMin / 60);
-                    elapsedStr = `(${diffHours}時間${diffMin % 60}分前)`;
+                const targetTime = isPending ? pos.orderPlacedTime : pos.entryTime;
+                if (targetTime) {
+                    const cleanEntryTime = targetTime.replace(' ', 'T') + '+09:00';
+                    const entryEpoch = new Date(cleanEntryTime).getTime();
+                    const diffMin = Math.max(0, Math.floor((Date.now() - entryEpoch) / (60 * 1000)));
+                    if (diffMin < 60) {
+                        elapsedStr = `(${diffMin}分前)`;
+                    } else {
+                        const diffHours = Math.floor(diffMin / 60);
+                        elapsedStr = `(${diffHours}時間${diffMin % 60}分前)`;
+                    }
                 }
             } catch (e) {}
 
             const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>
-                    <b>${pos.symbolName}</b> (${pos.symbol})<br>
-                    <span style="font-size:11px; color:#00e5ff;">⏰ ${pos.entryTime} <span style="color:var(--text-muted); font-size:10px;">${elapsedStr}</span></span><br>
-                    ${stratBadge}
-                </td>
-                <td>¥${Number(pos.entryPrice).toLocaleString()}</td>
-                <td>¥${Number(currentPrice).toLocaleString()}</td>
-                <td>${pos.shares} 株 (単元)</td>
-                <td>¥${Number(pos.investmentAmount).toLocaleString()}</td>
-                <td class="${colorClass}"><b>${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()}</b><br><span style="font-size:11px">(${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></td>
-                <td><button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="window.appOpenExit('${pos.symbol}', ${currentPrice})">決済</button></td>
-            `;
+
+            if (isPending) {
+                // 予約注文中の行表示
+                tr.style.background = "rgba(255, 215, 64, 0.03)";
+                tr.innerHTML = `
+                    <td>
+                        <b>${pos.symbolName}</b> (${pos.symbol})<br>
+                        <span class="chip-badge" style="background:rgba(255,215,64,0.2); color:#ffd740; border:1px solid #ffd740; font-size:10px;">🕒 注文予約中 (開場時成行約定)</span><br>
+                        <span style="font-size:11px; color:var(--text-muted);">発注: ${pos.orderPlacedTime || '-'} ${elapsedStr}</span><br>
+                        ${stratBadge}
+                    </td>
+                    <td>¥${Number(pos.entryPrice).toLocaleString()} <span style="font-size:10px; color:var(--text-muted);">(予想値)</span></td>
+                    <td>¥${Number(currentPrice).toLocaleString()}</td>
+                    <td>${pos.shares} 株 (単元)</td>
+                    <td>¥${Number(pos.investmentAmount).toLocaleString()}</td>
+                    <td>
+                        <span style="color:#ffd740; font-weight:700; font-size:12px;">⏳ 開場時約定待機</span><br>
+                        <span style="font-size:10px; color:var(--text-muted);">(次回開場時に自動約定)</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px; color:var(--accent-red); border-color:rgba(255,82,82,0.4);" onclick="window.appCancelOrder('${pos.symbol}')">❌ 予約取消</button>
+                    </td>
+                `;
+            } else {
+                // 通常の保有中ポジション
+                tr.innerHTML = `
+                    <td>
+                        <b>${pos.symbolName}</b> (${pos.symbol})<br>
+                        <span style="font-size:11px; color:#00e5ff;">⏰ ${pos.entryTime} <span style="color:var(--text-muted); font-size:10px;">${elapsedStr}</span></span><br>
+                        ${stratBadge}
+                    </td>
+                    <td>¥${Number(pos.entryPrice).toLocaleString()}</td>
+                    <td>¥${Number(currentPrice).toLocaleString()}</td>
+                    <td>${pos.shares} 株 (単元)</td>
+                    <td>¥${Number(pos.investmentAmount).toLocaleString()}</td>
+                    <td class="${colorClass}"><b>${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()}</b><br><span style="font-size:11px">(${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></td>
+                    <td><button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="window.appOpenExit('${pos.symbol}', ${currentPrice})">決済</button></td>
+                `;
+            }
             tbody.appendChild(tr);
         });
     }
@@ -1374,6 +1532,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.appOpenExit = (symbol, price) => {
         const pos = dataStore.positions.find(p => p.symbol === symbol);
         if (pos) openExitModal(pos, price);
+    };
+
+    window.appCancelOrder = async (symbol) => {
+        const canceled = await dataStore.cancelPosition(symbol);
+        if (canceled) {
+            notifier.showToast("info", `❌ 【予約取消完了】${canceled.symbolName}`, `開場前予約注文を取り消し、買付可能資金 (¥${canceled.investmentAmount.toLocaleString()}) を全額返却しました。`, 6000);
+            renderSymbolSelector();
+            updateGlobalSignalTicker();
+            selectSymbol(currentSymbolCode);
+            renderPositionsTable();
+            renderSummaryKPIs();
+        }
     };
 
     function renderTradesTable() {

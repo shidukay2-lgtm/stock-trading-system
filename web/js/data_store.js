@@ -279,6 +279,7 @@ class DataStore {
 
     // --- 4. ポジション操作 ---
     async addPosition(position) {
+        position.status = position.status || "ACTIVE";
         const existingIdx = this.positions.findIndex(p => p.symbol === position.symbol);
         if (existingIdx >= 0) {
             this.positions[existingIdx] = position;
@@ -299,6 +300,44 @@ class DataStore {
                 body: JSON.stringify(position)
             });
         } catch (e) {}
+    }
+
+    async updatePosition(position) {
+        const idx = this.positions.findIndex(p => p.symbol === position.symbol);
+        if (idx >= 0) {
+            this.positions[idx] = position;
+            this.saveLocalPositions();
+            try {
+                fetch('/api/positions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(position)
+                });
+            } catch (e) {}
+        }
+    }
+
+    async cancelPosition(symbol) {
+        const idx = this.positions.findIndex(p => p.symbol === symbol);
+        if (idx < 0) return null;
+
+        const pos = this.positions[idx];
+        const invest = Number(pos.investmentAmount) || (pos.entryPrice * pos.shares);
+        
+        // 拘束資金を全額返却
+        this.cash += invest;
+        this.positions.splice(idx, 1);
+
+        this.saveLocalPositions();
+        this.saveLocalAccount();
+
+        try {
+            fetch(`/api/positions/${encodeURIComponent(symbol)}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {}
+
+        return pos;
     }
 
     async closePosition(symbol, exitPrice, exitReason = "MANUAL", note = "", tags = "") {
