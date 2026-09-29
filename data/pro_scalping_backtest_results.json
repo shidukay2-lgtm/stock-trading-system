@@ -1,0 +1,1383 @@
+{
+  "4477.T": {
+    "info": {
+      "code": "4477.T",
+      "name": "BASE",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 17,
+      "win_count": 13,
+      "loss_count": 4,
+      "win_rate_pct": 76.5,
+      "profit_factor": 2.71,
+      "total_pnl_amount": 5467,
+      "latest_signal_time": "2026-09-25 11:00",
+      "avg_bars_held": 4.0,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-28 10:00",
+          "exit_time": "2026-08-31 09:00",
+          "entry_price": 316.0,
+          "exit_price": 320.7,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1422.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-14 12:00",
+          "exit_time": "2026-09-15 11:00",
+          "entry_price": 336.0,
+          "exit_price": 337.0,
+          "pnl_pct": 0.3,
+          "pnl_amount": 200.0,
+          "is_win": true,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-17 11:00",
+          "exit_time": "2026-09-18 10:00",
+          "entry_price": 338.0,
+          "exit_price": 339.0,
+          "pnl_pct": 0.3,
+          "pnl_amount": 200.0,
+          "is_win": true,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-24 10:00",
+          "exit_time": "2026-09-25 09:00",
+          "entry_price": 338.0,
+          "exit_price": 337.0,
+          "pnl_pct": -0.3,
+          "pnl_amount": -200.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-25 11:00",
+          "exit_time": "2026-09-28 10:00",
+          "entry_price": 338.0,
+          "exit_price": 334.0,
+          "pnl_pct": -1.18,
+          "pnl_amount": -800.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "7383.T": {
+    "info": {
+      "code": "7383.T",
+      "name": "ネットプロHD",
+      "market": "東証プライム",
+      "sector": "サービス"
+    },
+    "metrics_strat3": {
+      "trades_count": 19,
+      "win_count": 13,
+      "loss_count": 6,
+      "win_rate_pct": 68.4,
+      "profit_factor": 1.54,
+      "total_pnl_amount": 3023,
+      "latest_signal_time": "2026-09-28 12:00",
+      "avg_bars_held": 2.2,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-26 15:00",
+          "exit_time": "2026-08-27 09:00",
+          "entry_price": 460.0,
+          "exit_price": 462.0,
+          "pnl_pct": 0.43,
+          "pnl_amount": 400.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-17 10:00",
+          "exit_time": "2026-09-18 09:00",
+          "entry_price": 388.0,
+          "exit_price": 393.8,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1164.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-24 13:00",
+          "exit_time": "2026-09-24 15:00",
+          "entry_price": 397.0,
+          "exit_price": 392.2,
+          "pnl_pct": -1.2,
+          "pnl_amount": -953.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-25 15:00",
+          "exit_time": "2026-09-28 09:00",
+          "entry_price": 396.0,
+          "exit_price": 398.0,
+          "pnl_pct": 0.51,
+          "pnl_amount": 400.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-28 12:00",
+          "exit_time": "2026-09-29 09:00",
+          "entry_price": 396.0,
+          "exit_price": 391.2,
+          "pnl_pct": -1.2,
+          "pnl_amount": -950.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        }
+      ]
+    }
+  },
+  "7085.T": {
+    "info": {
+      "code": "7085.T",
+      "name": "カーブスHD",
+      "market": "東証プライム",
+      "sector": "サービス"
+    },
+    "metrics_strat3": {
+      "trades_count": 22,
+      "win_count": 14,
+      "loss_count": 8,
+      "win_rate_pct": 63.6,
+      "profit_factor": 1.24,
+      "total_pnl_amount": 1698,
+      "latest_signal_time": "2026-08-26 13:00",
+      "avg_bars_held": 4.0,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-12 11:00",
+          "exit_time": "2026-08-13 10:00",
+          "entry_price": 945.0,
+          "exit_price": 947.0,
+          "pnl_pct": 0.21,
+          "pnl_amount": 200.0,
+          "is_win": true,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-08-14 13:00",
+          "exit_time": "2026-08-17 09:00",
+          "entry_price": 953.0,
+          "exit_price": 954.0,
+          "pnl_pct": 0.1,
+          "pnl_amount": 95.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-08-17 10:00",
+          "exit_time": "2026-08-18 09:00",
+          "entry_price": 962.0,
+          "exit_price": 950.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1154.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-08-19 12:00",
+          "exit_time": "2026-08-20 09:00",
+          "entry_price": 953.0,
+          "exit_price": 959.0,
+          "pnl_pct": 0.63,
+          "pnl_amount": 600.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 4
+        },
+        {
+          "entry_time": "2026-08-26 13:00",
+          "exit_time": "2026-08-27 10:00",
+          "entry_price": 975.0,
+          "exit_price": 963.3,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1170.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        }
+      ]
+    }
+  },
+  "2484.T": {
+    "info": {
+      "code": "2484.T",
+      "name": "出前館",
+      "market": "東証スタンダード",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 34,
+      "win_count": 22,
+      "loss_count": 12,
+      "win_rate_pct": 64.7,
+      "profit_factor": 1.15,
+      "total_pnl_amount": 1984,
+      "latest_signal_time": "2026-09-15 11:00",
+      "avg_bars_held": 2.1,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-24 10:00",
+          "exit_time": "2026-08-24 12:00",
+          "entry_price": 155.0,
+          "exit_price": 153.1,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1116.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-08-25 09:00",
+          "exit_time": "2026-08-25 10:00",
+          "entry_price": 156.0,
+          "exit_price": 156.2,
+          "pnl_pct": 0.1,
+          "pnl_amount": 94.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-11 10:00",
+          "exit_time": "2026-09-11 12:00",
+          "entry_price": 154.0,
+          "exit_price": 154.2,
+          "pnl_pct": 0.1,
+          "pnl_amount": 92.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-14 10:00",
+          "exit_time": "2026-09-14 11:00",
+          "entry_price": 158.0,
+          "exit_price": 160.4,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1422.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-15 11:00",
+          "exit_time": "2026-09-16 09:00",
+          "entry_price": 160.0,
+          "exit_price": 162.4,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1440.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 5
+        }
+      ]
+    }
+  },
+  "4436.T": {
+    "info": {
+      "code": "4436.T",
+      "name": "ミンカブ",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 1,
+      "win_count": 1,
+      "loss_count": 0,
+      "win_rate_pct": 100.0,
+      "profit_factor": 1038.0,
+      "total_pnl_amount": 1038,
+      "latest_signal_time": "2026-09-29 10:00",
+      "avg_bars_held": 1.0,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-29 10:00",
+          "exit_time": "2026-09-29 11:00",
+          "entry_price": 692.0,
+          "exit_price": 702.4,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1038.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        }
+      ]
+    }
+  },
+  "5246.T": {
+    "info": {
+      "code": "5246.T",
+      "name": "ELEMENTS",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 19,
+      "win_count": 11,
+      "loss_count": 8,
+      "win_rate_pct": 57.9,
+      "profit_factor": 0.57,
+      "total_pnl_amount": -3376,
+      "latest_signal_time": "2026-09-25 15:00",
+      "avg_bars_held": 2.3,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-09 13:00",
+          "exit_time": "2026-09-10 09:00",
+          "entry_price": 838.0,
+          "exit_price": 842.0,
+          "pnl_pct": 0.48,
+          "pnl_amount": 400.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-15 14:00",
+          "exit_time": "2026-09-16 09:00",
+          "entry_price": 810.0,
+          "exit_price": 811.6,
+          "pnl_pct": 0.2,
+          "pnl_amount": 162.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-18 15:00",
+          "exit_time": "2026-09-24 09:00",
+          "entry_price": 860.0,
+          "exit_price": 872.9,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1290.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-24 15:00",
+          "exit_time": "2026-09-25 09:00",
+          "entry_price": 863.0,
+          "exit_price": 852.6,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1036.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-25 15:00",
+          "exit_time": "2026-09-28 09:00",
+          "entry_price": 864.0,
+          "exit_price": 853.6,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1037.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 1
+        }
+      ]
+    }
+  },
+  "4482.T": {
+    "info": {
+      "code": "4482.T",
+      "name": "ユナイト＆グロウ",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 15,
+      "win_count": 7,
+      "loss_count": 8,
+      "win_rate_pct": 46.7,
+      "profit_factor": 0.63,
+      "total_pnl_amount": -1342,
+      "latest_signal_time": "2026-09-18 13:00",
+      "avg_bars_held": 5.4,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-03 15:00",
+          "exit_time": "2026-09-04 15:00",
+          "entry_price": 741.0,
+          "exit_price": 741.0,
+          "pnl_pct": 0.0,
+          "pnl_amount": 0.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-07 10:00",
+          "exit_time": "2026-09-08 12:00",
+          "entry_price": 738.0,
+          "exit_price": 738.7,
+          "pnl_pct": 0.1,
+          "pnl_amount": 74.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 5
+        },
+        {
+          "entry_time": "2026-09-08 14:00",
+          "exit_time": "2026-09-10 09:00",
+          "entry_price": 737.0,
+          "exit_price": 742.0,
+          "pnl_pct": 0.68,
+          "pnl_amount": 500.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-16 12:00",
+          "exit_time": "2026-09-17 10:00",
+          "entry_price": 743.0,
+          "exit_price": 743.7,
+          "pnl_pct": 0.1,
+          "pnl_amount": 74.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 5
+        },
+        {
+          "entry_time": "2026-09-18 13:00",
+          "exit_time": "2026-09-24 13:00",
+          "entry_price": 745.0,
+          "exit_price": 746.0,
+          "pnl_pct": 0.13,
+          "pnl_amount": 100.0,
+          "is_win": true,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "2158.T": {
+    "info": {
+      "code": "2158.T",
+      "name": "FRONTEO",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 24,
+      "win_count": 13,
+      "loss_count": 11,
+      "win_rate_pct": 54.2,
+      "profit_factor": 0.73,
+      "total_pnl_amount": -2283,
+      "latest_signal_time": "2026-09-29 10:00",
+      "avg_bars_held": 2.8,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-15 13:00",
+          "exit_time": "2026-09-15 14:00",
+          "entry_price": 614.0,
+          "exit_price": 614.6,
+          "pnl_pct": 0.1,
+          "pnl_amount": 61.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-16 14:00",
+          "exit_time": "2026-09-17 09:00",
+          "entry_price": 619.0,
+          "exit_price": 628.3,
+          "pnl_pct": 1.5,
+          "pnl_amount": 928.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-18 12:00",
+          "exit_time": "2026-09-18 13:00",
+          "entry_price": 638.0,
+          "exit_price": 638.6,
+          "pnl_pct": 0.1,
+          "pnl_amount": 64.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-25 15:00",
+          "exit_time": "2026-09-28 09:00",
+          "entry_price": 653.0,
+          "exit_price": 653.7,
+          "pnl_pct": 0.1,
+          "pnl_amount": 65.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-29 10:00",
+          "exit_time": "2026-09-29 15:00",
+          "entry_price": 656.0,
+          "exit_price": 661.0,
+          "pnl_pct": 0.76,
+          "pnl_amount": 500.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 5
+        }
+      ]
+    }
+  },
+  "5026.T": {
+    "info": {
+      "code": "5026.T",
+      "name": "トリプルアイズ",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 10,
+      "win_count": 4,
+      "loss_count": 6,
+      "win_rate_pct": 40.0,
+      "profit_factor": 0.46,
+      "total_pnl_amount": -2400,
+      "latest_signal_time": "2026-09-01 10:00",
+      "avg_bars_held": 1.9,
+      "recent_trades": [
+        {
+          "entry_time": "2026-07-10 13:00",
+          "exit_time": "2026-07-10 15:00",
+          "entry_price": 593.0,
+          "exit_price": 585.9,
+          "pnl_pct": -1.2,
+          "pnl_amount": -712.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-07-13 15:00",
+          "exit_time": "2026-07-14 09:00",
+          "entry_price": 600.0,
+          "exit_price": 609.0,
+          "pnl_pct": 1.5,
+          "pnl_amount": 900.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-07-15 12:00",
+          "exit_time": "2026-07-15 13:00",
+          "entry_price": 689.0,
+          "exit_price": 680.7,
+          "pnl_pct": -1.2,
+          "pnl_amount": -827.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-31 14:00",
+          "exit_time": "2026-08-31 15:00",
+          "entry_price": 631.0,
+          "exit_price": 640.5,
+          "pnl_pct": 1.5,
+          "pnl_amount": 946.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-01 10:00",
+          "exit_time": "2026-09-01 12:00",
+          "entry_price": 625.0,
+          "exit_price": 617.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -750.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        }
+      ]
+    }
+  },
+  "5586.T": {
+    "info": {
+      "code": "5586.T",
+      "name": "Laboro.AI",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 27,
+      "win_count": 17,
+      "loss_count": 10,
+      "win_rate_pct": 63.0,
+      "profit_factor": 1.56,
+      "total_pnl_amount": 5590,
+      "latest_signal_time": "2026-09-28 11:00",
+      "avg_bars_held": 3.3,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-08 12:00",
+          "exit_time": "2026-09-09 09:00",
+          "entry_price": 931.0,
+          "exit_price": 919.8,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1117.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        },
+        {
+          "entry_time": "2026-09-10 10:00",
+          "exit_time": "2026-09-10 12:00",
+          "entry_price": 936.0,
+          "exit_price": 945.0,
+          "pnl_pct": 0.96,
+          "pnl_amount": 900.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-17 11:00",
+          "exit_time": "2026-09-18 10:00",
+          "entry_price": 916.0,
+          "exit_price": 927.0,
+          "pnl_pct": 1.2,
+          "pnl_amount": 1100.0,
+          "is_win": true,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        },
+        {
+          "entry_time": "2026-09-25 15:00",
+          "exit_time": "2026-09-28 09:00",
+          "entry_price": 935.0,
+          "exit_price": 949.0,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1402.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-28 11:00",
+          "exit_time": "2026-09-29 10:00",
+          "entry_price": 939.0,
+          "exit_price": 931.0,
+          "pnl_pct": -0.85,
+          "pnl_amount": -800.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "7094.T": {
+    "info": {
+      "code": "7094.T",
+      "name": "NexTone",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 15,
+      "win_count": 10,
+      "loss_count": 5,
+      "win_rate_pct": 66.7,
+      "profit_factor": 1.45,
+      "total_pnl_amount": 4962,
+      "latest_signal_time": "2026-09-28 14:00",
+      "avg_bars_held": 2.6,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-08 12:00",
+          "exit_time": "2026-09-08 14:00",
+          "entry_price": 1863.0,
+          "exit_price": 1840.6,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2236.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-10 13:00",
+          "exit_time": "2026-09-11 09:00",
+          "entry_price": 1833.0,
+          "exit_price": 1811.0,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2200.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-14 13:00",
+          "exit_time": "2026-09-14 15:00",
+          "entry_price": 1803.0,
+          "exit_price": 1830.0,
+          "pnl_pct": 1.5,
+          "pnl_amount": 2704.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-16 13:00",
+          "exit_time": "2026-09-17 09:00",
+          "entry_price": 1841.0,
+          "exit_price": 1868.6,
+          "pnl_pct": 1.5,
+          "pnl_amount": 2761.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-28 14:00",
+          "exit_time": "2026-09-29 09:00",
+          "entry_price": 1849.0,
+          "exit_price": 1826.8,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2219.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        }
+      ]
+    }
+  },
+  "4476.T": {
+    "info": {
+      "code": "4476.T",
+      "name": "AI CROSS",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 20,
+      "win_count": 12,
+      "loss_count": 8,
+      "win_rate_pct": 60.0,
+      "profit_factor": 0.98,
+      "total_pnl_amount": -225,
+      "latest_signal_time": "2026-09-28 10:00",
+      "avg_bars_held": 3.0,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-04 13:00",
+          "exit_time": "2026-09-07 09:00",
+          "entry_price": 1114.0,
+          "exit_price": 1100.6,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1337.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-15 14:00",
+          "exit_time": "2026-09-16 09:00",
+          "entry_price": 1085.0,
+          "exit_price": 1089.0,
+          "pnl_pct": 0.37,
+          "pnl_amount": 400.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-16 12:00",
+          "exit_time": "2026-09-16 15:00",
+          "entry_price": 1093.0,
+          "exit_price": 1079.9,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1312.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-24 14:00",
+          "exit_time": "2026-09-25 09:00",
+          "entry_price": 1089.0,
+          "exit_price": 1091.2,
+          "pnl_pct": 0.2,
+          "pnl_amount": 218.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-28 10:00",
+          "exit_time": "2026-09-29 09:00",
+          "entry_price": 1089.0,
+          "exit_price": 1080.0,
+          "pnl_pct": -0.83,
+          "pnl_amount": -900.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "7354.T": {
+    "info": {
+      "code": "7354.T",
+      "name": "DmMiX",
+      "market": "東証プライム",
+      "sector": "サービス"
+    },
+    "metrics_strat3": {
+      "trades_count": 37,
+      "win_count": 22,
+      "loss_count": 15,
+      "win_rate_pct": 59.5,
+      "profit_factor": 1.1,
+      "total_pnl_amount": 1392,
+      "latest_signal_time": "2026-09-03 14:00",
+      "avg_bars_held": 2.7,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-27 13:00",
+          "exit_time": "2026-08-27 15:00",
+          "entry_price": 368.0,
+          "exit_price": 368.4,
+          "pnl_pct": 0.1,
+          "pnl_amount": 74.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-01 10:00",
+          "exit_time": "2026-09-01 12:00",
+          "entry_price": 380.0,
+          "exit_price": 375.4,
+          "pnl_pct": -1.2,
+          "pnl_amount": -912.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-01 13:00",
+          "exit_time": "2026-09-01 14:00",
+          "entry_price": 390.0,
+          "exit_price": 395.8,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1170.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-03 11:00",
+          "exit_time": "2026-09-03 13:00",
+          "entry_price": 403.0,
+          "exit_price": 403.4,
+          "pnl_pct": 0.1,
+          "pnl_amount": 81.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-03 14:00",
+          "exit_time": "2026-09-04 09:00",
+          "entry_price": 404.0,
+          "exit_price": 399.2,
+          "pnl_pct": -1.2,
+          "pnl_amount": -970.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        }
+      ]
+    }
+  },
+  "3903.T": {
+    "info": {
+      "code": "3903.T",
+      "name": "gumi",
+      "market": "東証プライム",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 11,
+      "win_count": 8,
+      "loss_count": 3,
+      "win_rate_pct": 72.7,
+      "profit_factor": 0.24,
+      "total_pnl_amount": -2346,
+      "latest_signal_time": "2026-09-10 10:00",
+      "avg_bars_held": 2.0,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-25 09:00",
+          "exit_time": "2026-08-25 10:00",
+          "entry_price": 276.0,
+          "exit_price": 276.3,
+          "pnl_pct": 0.1,
+          "pnl_amount": 83.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-31 10:00",
+          "exit_time": "2026-08-31 12:00",
+          "entry_price": 282.0,
+          "exit_price": 282.3,
+          "pnl_pct": 0.1,
+          "pnl_amount": 85.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-08-31 15:00",
+          "exit_time": "2026-09-01 09:00",
+          "entry_price": 287.0,
+          "exit_price": 287.6,
+          "pnl_pct": 0.2,
+          "pnl_amount": 172.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-04 10:00",
+          "exit_time": "2026-09-04 11:00",
+          "entry_price": 276.0,
+          "exit_price": 276.3,
+          "pnl_pct": 0.1,
+          "pnl_amount": 83.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-10 10:00",
+          "exit_time": "2026-09-11 09:00",
+          "entry_price": 270.0,
+          "exit_price": 266.8,
+          "pnl_pct": -1.2,
+          "pnl_amount": -972.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "5240.T": {
+    "info": {
+      "code": "5240.T",
+      "name": "monoAI",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 9,
+      "win_count": 7,
+      "loss_count": 2,
+      "win_rate_pct": 77.8,
+      "profit_factor": 2.71,
+      "total_pnl_amount": 3783,
+      "latest_signal_time": "2026-08-31 13:00",
+      "avg_bars_held": 1.1,
+      "recent_trades": [
+        {
+          "entry_time": "2026-07-28 14:00",
+          "exit_time": "2026-07-28 15:00",
+          "entry_price": 222.0,
+          "exit_price": 222.4,
+          "pnl_pct": 0.2,
+          "pnl_amount": 178.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-07-29 12:00",
+          "exit_time": "2026-07-29 13:00",
+          "entry_price": 229.0,
+          "exit_price": 229.5,
+          "pnl_pct": 0.2,
+          "pnl_amount": 183.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-06 14:00",
+          "exit_time": "2026-08-06 15:00",
+          "entry_price": 219.0,
+          "exit_price": 222.3,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1314.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-10 09:00",
+          "exit_time": "2026-08-10 10:00",
+          "entry_price": 229.0,
+          "exit_price": 229.2,
+          "pnl_pct": 0.1,
+          "pnl_amount": 92.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-31 13:00",
+          "exit_time": "2026-08-31 14:00",
+          "entry_price": 225.0,
+          "exit_price": 228.4,
+          "pnl_pct": 1.5,
+          "pnl_amount": 1350.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 1
+        }
+      ]
+    }
+  },
+  "4487.T": {
+    "info": {
+      "code": "4487.T",
+      "name": "スペースマーケット",
+      "market": "東証グロース",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 7,
+      "win_count": 1,
+      "loss_count": 6,
+      "win_rate_pct": 14.3,
+      "profit_factor": 0.01,
+      "total_pnl_amount": -6191,
+      "latest_signal_time": "2026-05-19 10:00",
+      "avg_bars_held": 1.9,
+      "recent_trades": [
+        {
+          "entry_time": "2026-04-27 10:00",
+          "exit_time": "2026-04-28 09:00",
+          "entry_price": 289.0,
+          "exit_price": 285.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1040.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        },
+        {
+          "entry_time": "2026-05-11 14:00",
+          "exit_time": "2026-05-12 09:00",
+          "entry_price": 289.0,
+          "exit_price": 289.3,
+          "pnl_pct": 0.1,
+          "pnl_amount": 87.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-05-13 14:00",
+          "exit_time": "2026-05-14 10:00",
+          "entry_price": 291.0,
+          "exit_price": 287.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1048.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-05-15 14:00",
+          "exit_time": "2026-05-15 15:00",
+          "entry_price": 290.0,
+          "exit_price": 286.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1044.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-05-19 10:00",
+          "exit_time": "2026-05-19 14:00",
+          "entry_price": 288.0,
+          "exit_price": 284.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1037.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        }
+      ]
+    }
+  },
+  "4016.T": {
+    "info": {
+      "code": "4016.T",
+      "name": "MIT HD",
+      "market": "東証スタンダード",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 24,
+      "win_count": 11,
+      "loss_count": 13,
+      "win_rate_pct": 45.8,
+      "profit_factor": 0.46,
+      "total_pnl_amount": -4832,
+      "latest_signal_time": "2026-09-25 09:00",
+      "avg_bars_held": 4.5,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-02 14:00",
+          "exit_time": "2026-09-04 09:00",
+          "entry_price": 1056.0,
+          "exit_price": 1043.3,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1267.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 5
+        },
+        {
+          "entry_time": "2026-09-04 13:00",
+          "exit_time": "2026-09-07 12:00",
+          "entry_price": 1050.0,
+          "exit_price": 1037.4,
+          "pnl_pct": -1.2,
+          "pnl_amount": -1260.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 5
+        },
+        {
+          "entry_time": "2026-09-17 10:00",
+          "exit_time": "2026-09-18 09:00",
+          "entry_price": 1080.0,
+          "exit_price": 1081.1,
+          "pnl_pct": 0.1,
+          "pnl_amount": 108.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 3
+        },
+        {
+          "entry_time": "2026-09-18 12:00",
+          "exit_time": "2026-09-18 13:00",
+          "entry_price": 1077.0,
+          "exit_price": 1079.2,
+          "pnl_pct": 0.2,
+          "pnl_amount": 215.0,
+          "is_win": true,
+          "exit_reason": "TRAILING_PROFIT (+勝ち逃げ)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-25 09:00",
+          "exit_time": "2026-09-25 15:00",
+          "entry_price": 1072.0,
+          "exit_price": 1072.0,
+          "pnl_pct": 0.0,
+          "pnl_amount": 0.0,
+          "is_win": false,
+          "exit_reason": "TIME_EXPIRY",
+          "bars_held": 6
+        }
+      ]
+    }
+  },
+  "3993.T": {
+    "info": {
+      "code": "3993.T",
+      "name": "PKSHA",
+      "market": "東証プライム",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 11,
+      "win_count": 9,
+      "loss_count": 2,
+      "win_rate_pct": 81.8,
+      "profit_factor": 2.16,
+      "total_pnl_amount": 8608,
+      "latest_signal_time": "2026-09-18 12:00",
+      "avg_bars_held": 1.7,
+      "recent_trades": [
+        {
+          "entry_time": "2026-08-17 10:00",
+          "exit_time": "2026-08-17 12:00",
+          "entry_price": 3015.0,
+          "exit_price": 3018.0,
+          "pnl_pct": 0.1,
+          "pnl_amount": 301.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-08-19 12:00",
+          "exit_time": "2026-08-19 13:00",
+          "entry_price": 3010.0,
+          "exit_price": 2973.9,
+          "pnl_pct": -1.2,
+          "pnl_amount": -3612.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-08-19 14:00",
+          "exit_time": "2026-08-20 09:00",
+          "entry_price": 3020.0,
+          "exit_price": 3065.3,
+          "pnl_pct": 1.5,
+          "pnl_amount": 4530.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-08-27 13:00",
+          "exit_time": "2026-08-27 14:00",
+          "entry_price": 3235.0,
+          "exit_price": 3238.2,
+          "pnl_pct": 0.1,
+          "pnl_amount": 323.0,
+          "is_win": true,
+          "exit_reason": "PROFIT_LOCK_GUARD (同値微益)",
+          "bars_held": 1
+        },
+        {
+          "entry_time": "2026-09-18 12:00",
+          "exit_time": "2026-09-24 09:00",
+          "entry_price": 3195.0,
+          "exit_price": 3156.7,
+          "pnl_pct": -1.2,
+          "pnl_amount": -3834.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        }
+      ]
+    }
+  },
+  "4443.T": {
+    "info": {
+      "code": "4443.T",
+      "name": "Sansan",
+      "market": "東証プライム",
+      "sector": "情報・通信"
+    },
+    "metrics_strat3": {
+      "trades_count": 21,
+      "win_count": 13,
+      "loss_count": 8,
+      "win_rate_pct": 61.9,
+      "profit_factor": 1.18,
+      "total_pnl_amount": 3521,
+      "latest_signal_time": "2026-09-28 14:00",
+      "avg_bars_held": 1.9,
+      "recent_trades": [
+        {
+          "entry_time": "2026-09-15 14:00",
+          "exit_time": "2026-09-16 09:00",
+          "entry_price": 2085.0,
+          "exit_price": 2060.0,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2502.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-16 14:00",
+          "exit_time": "2026-09-17 09:00",
+          "entry_price": 2072.0,
+          "exit_price": 2103.1,
+          "pnl_pct": 1.5,
+          "pnl_amount": 3108.0,
+          "is_win": true,
+          "exit_reason": "TAKE_PROFIT_FAST (+1.5%)",
+          "bars_held": 2
+        },
+        {
+          "entry_time": "2026-09-18 12:00",
+          "exit_time": "2026-09-24 09:00",
+          "entry_price": 2127.0,
+          "exit_price": 2101.5,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2552.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 4
+        },
+        {
+          "entry_time": "2026-09-24 11:00",
+          "exit_time": "2026-09-25 09:00",
+          "entry_price": 2107.0,
+          "exit_price": 2081.7,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2528.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 5
+        },
+        {
+          "entry_time": "2026-09-28 14:00",
+          "exit_time": "2026-09-29 09:00",
+          "entry_price": 2061.0,
+          "exit_price": 2036.3,
+          "pnl_pct": -1.2,
+          "pnl_amount": -2473.0,
+          "is_win": false,
+          "exit_reason": "STOP_LOSS (-1.2%)",
+          "bars_held": 2
+        }
+      ]
+    }
+  }
+}

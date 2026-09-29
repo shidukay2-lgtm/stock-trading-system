@@ -64,8 +64,9 @@ class TradingChart {
         ];
 
         if (isStrategy3) {
-            // 戦略3 (MTF高速スキャル・デイトレ): 短期VWAP + EMA10 + EMA25 + EMA50 + 板気配インバランス
+            // 戦略3 (プロ仕様高速スキャル・デイトレ): 短期VWAP + EMA5 + EMA10 + EMA25 + EMA50 + 板気配インバランス
             const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
+            const ema5 = analyzedCandles.map(c => c.ema5 !== undefined ? c.ema5 : (c.ema10 !== undefined ? c.ema10 : c.close));
             const ema10 = analyzedCandles.map(c => c.ema10 !== undefined ? c.ema10 : c.close);
             const ema25 = analyzedCandles.map(c => c.ema25 !== undefined ? c.ema25 : c.close);
             const ema50 = analyzedCandles.map(c => c.ema50 !== undefined ? c.ema50 : c.close);
@@ -86,9 +87,19 @@ class TradingChart {
                     type: "scatter",
                     mode: "lines",
                     x: times,
+                    y: ema5,
+                    name: "EMA 5 (超短期モメンタム)",
+                    line: { color: "#00e676", width: 1.8 },
+                    xaxis: "x",
+                    yaxis: "y"
+                },
+                {
+                    type: "scatter",
+                    mode: "lines",
+                    x: times,
                     y: ema10,
-                    name: "EMA 10 (超短期)",
-                    line: { color: "#00e5ff", width: 1.8 },
+                    name: "EMA 10 (短期支持線)",
+                    line: { color: "#00e5ff", width: 1.6 },
                     xaxis: "x",
                     yaxis: "y"
                 },
@@ -97,8 +108,8 @@ class TradingChart {
                     mode: "lines",
                     x: times,
                     y: ema25,
-                    name: "EMA 25 (中期)",
-                    line: { color: "#b388ff", width: 1.6 },
+                    name: "EMA 25 (中期支持線)",
+                    line: { color: "#b388ff", width: 1.4 },
                     xaxis: "x",
                     yaxis: "y"
                 },
@@ -217,11 +228,11 @@ class TradingChart {
 
         // 買いシグナルマーカー (▲)
         if (buyTimes.length > 0) {
-            const tpPctDefault = isStrategy3 ? 1.025 : 1.06;
-            const slPctDefault = isStrategy3 ? 0.984 : 0.975;
-            const tpStr = isStrategy3 ? "+2.5%" : "+6.0%";
-            const slStr = isStrategy3 ? "-1.6%" : "-2.5%";
-            const holdRuleStr = isStrategy3 ? "最大8バー (当日大引け手仕舞い・持ち越しゼロ)" : "最大15バー (3営業日)";
+            const tpPctDefault = isStrategy3 ? 1.015 : 1.06;
+            const slPctDefault = isStrategy3 ? 0.988 : 0.975;
+            const tpStr = isStrategy3 ? "+1.5%" : "+6.0%";
+            const slStr = isStrategy3 ? "-1.2%" : "-2.5%";
+            const holdRuleStr = isStrategy3 ? "利益ロック+0.7%・動的トレーリング利食い・最大6バー (当日大引け手仕舞い)" : "最大15バー (3営業日)";
 
             traces.push({
                 type: "scatter",
@@ -233,7 +244,7 @@ class TradingChart {
                 hovertext: buySignals.map(s => {
                     const tpVal = s.takeProfitPrice ? s.takeProfitPrice.toFixed(1) : (s.close * tpPctDefault).toFixed(1);
                     const slVal = s.stopLossPrice ? s.stopLossPrice.toFixed(1) : (s.close * slPctDefault).toFixed(1);
-                    return `【${isStrategy3 ? '⚡ 戦略3 高速デイトレ BUYシグナル' : '🔔 BUY推奨シグナル点灯'}】<br>時間軸: ${currentIntervalLabel}<br>日時: ${s.time}<br>株価: ¥${s.close}<br>利確目標(${tpStr}): ¥${tpVal}<br>損切ライン(${slStr}): ¥${slVal}<br>ルール: ${holdRuleStr}`;
+                    return `【${isStrategy3 ? '⚡ 戦略3 プロスキャル BUYシグナル' : '🔔 BUY推奨シグナル点灯'}】<br>時間軸: ${currentIntervalLabel}<br>日時: ${s.time}<br>株価: ¥${s.close}<br>利確目標(${tpStr}): ¥${tpVal}<br>損切ライン(${slStr}): ¥${slVal}<br>ルール: ${holdRuleStr}`;
                 }),
                 hoverinfo: "text",
                 xaxis: "x",
@@ -538,9 +549,9 @@ class TradingChart {
             if (isStrategy3) {
                 legendHtml += `
                     <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">短期VWAP</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:1.5px; background:#ff80ab; border-radius:2px;"></span><span style="color:#ff80ab;">EMA 50</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e676; border-radius:2px;"></span><span style="color:#00e676; font-weight:600;">EMA 5</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
+                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:1.8px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
                     <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#4a5568; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配比率</span></span>
                     <span style="display:flex; align-items:center; gap:3px;"><span style="color:#ffd740; font-size:12px;">▲</span><span style="color:#ffd740; font-weight:700;">BUYシグナル</span></span>
                     <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(9)</span></span>

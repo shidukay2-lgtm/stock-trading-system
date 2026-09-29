@@ -94,6 +94,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             const currentHigh = Number(latest.high) || currentClose;
             const currentLow = Number(latest.low) || currentClose;
 
+            // 保有中最高値の追跡
+            if (!pos.maxPrice || currentHigh > pos.maxPrice) {
+                pos.maxPrice = Math.max(pos.maxPrice || pos.entryPrice, currentHigh);
+            }
+
+            const peakGainPct = (pos.maxPrice - pos.entryPrice) / pos.entryPrice;
+            const curGainPct = (currentClose - pos.entryPrice) / pos.entryPrice;
+
             // 保有バー数の正確な算出 (エントリー日時以降の新しいローソク足のみをカウント)
             let barsCount = 1;
             const entryPrefix = String(pos.entryTime || "").substring(0, 16);
@@ -128,44 +136,71 @@ document.addEventListener("DOMContentLoaded", async () => {
             let exitReason = null;
             let exitNote = "";
 
-            // --- 決済条件判定 (デイトレ・高速スキャルピング厳格ルール) ---
-            // (A) 【重要】デイトレ日跨ぎ持ち越し防止の強制成行決済 (前日エントリーの持ち越しを即時排除)
-            if (isScalpPos && isOvernight && isMarketOpen) {
-                exitPrice = currentClose;
-                exitReason = "DAY_OVER_TIMEOUT";
-                exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
-            }
-            // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50〜15:30の大引け時に全手仕舞い)
-            else if (isScalpPos && isMarketCloseTime) {
-                exitPrice = currentClose;
-                exitReason = "MARKET_CLOSE";
-                exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
-            }
-            // (C) 利確判定 (目標価格到達: 戦略3は+2.5%, 他は+6.0%)
-            // ※エントリー足（barsCount === 1）では現在値(currentClose)で判定
-            else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
-                exitPrice = Math.max(pos.takeProfitPrice, currentClose);
-                exitReason = "TAKE_PROFIT";
-                exitNote = isScalpPos ? `🎯 高速利食い約定 (+2.5%達成: ¥${exitPrice.toLocaleString()})` : `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
-            }
-            // (D) 損切判定 (損切りライン到達: 戦略3は-1.6%, 他は-2.5%)
-            // ※エントリー足（barsCount === 1）ではリアルタイム現在値(currentClose)のみで判定し、過去の下ヒゲ最安値(currentLow)による即座の損切り誤爆を完全に防止
-            else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
-                exitPrice = Math.min(pos.stopLossPrice, currentClose);
-                exitReason = "STOP_LOSS";
-                exitNote = isScalpPos ? `🛑 高速損切り約定 (-1.6%到達: ¥${exitPrice.toLocaleString()})` : `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
-            }
-            // (E) スキャルピング保有時間満了 (最大8バー経過、または実時間経過)
-            else if (isScalpPos && (pos.holdingBars >= 8 || elapsedMinutes >= 360)) {
-                exitPrice = currentClose;
-                exitReason = "TIMEOUT";
-                exitNote = `⌛ デイトレ保有期限満了決済 (当日8バー経過: ¥${exitPrice.toLocaleString()})`;
-            }
-            // (F) スイング戦略の通常期限満了 (15バー経過)
-            else if (!isScalpPos && pos.holdingBars >= 15) {
-                exitPrice = currentClose;
-                exitReason = "TIMEOUT";
-                exitNote = `⌛ スイング保有期限満了決済 (15バー/3営業日経過: ¥${exitPrice.toLocaleString()})`;
+            // --- 決済条件判定 (デイトレ・高速スキャルピング プロ仕様厳格ルール) ---
+            if (isScalpPos) {
+                // (A) 【重要】デイトレ日跨ぎ持ち越し防止の強制成行決済 (前日エントリーの持ち越しを即時排除)
+                if (isOvernight && isMarketOpen) {
+                    exitPrice = currentClose;
+                    exitReason = "DAY_OVER_TIMEOUT";
+                    exitNote = `🛑 デイトレ持ち越し防止・前日ポジション強制成行決済 (前日 ${pos.entryTime} 約定分)`;
+                }
+                // (B) 【重要】デイトレ大引け手仕舞い決済 (当日14:50〜15:30の大引け時に全手仕舞い)
+                else if (isMarketCloseTime) {
+                    exitPrice = currentClose;
+                    exitReason = "MARKET_CLOSE";
+                    exitNote = `🔔 デイトレ大引け手仕舞い決済 (当日完結成行)`;
+                }
+                // (C) 基本利確目標到達 (+1.5% 達成)
+                else if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
+                    exitPrice = Math.max(pos.takeProfitPrice, currentClose);
+                    exitReason = "TAKE_PROFIT";
+                    exitNote = `🎯 高速利食い約定 (+1.5%達成: ¥${exitPrice.toLocaleString()})`;
+                }
+                // (D) 【プロ仕様】動的トレーリング利食い (+1.0%以上伸びた後、ピーク最高値から0.3%反落で勝ち逃げ成行利食い)
+                else if (peakGainPct >= 0.010 && currentClose <= pos.maxPrice * 0.997) {
+                    exitPrice = Math.max(Math.round(pos.entryPrice * 1.002), currentClose);
+                    exitReason = "TRAILING_PROFIT";
+                    exitNote = `🎯 動的トレーリング勝ち逃げ利食い約定 (ピーク¥${Math.round(pos.maxPrice).toLocaleString()}から反落成行: ¥${exitPrice.toLocaleString()})`;
+                }
+                // (E) 【プロ仕様】プロフィットロック同値微益ガード (+0.7%到達後に買値同値まで押された場合の損失転落完全防止)
+                else if (peakGainPct >= 0.007 && currentLow <= pos.entryPrice * 1.001) {
+                    exitPrice = Math.round(pos.entryPrice * 1.001);
+                    exitReason = "PROFIT_LOCK_GUARD";
+                    exitNote = `🛡️ プロフィットロック同値ガード約定 (損失転落防止・買値撤退: ¥${exitPrice.toLocaleString()})`;
+                }
+                // (F) 超短期EMA5割れによるモメンタム失速手仕舞い (2バー以上経過・含み益+0.3%以上)
+                else if (barsCount >= 2 && latest.ema5 && currentClose < Number(latest.ema5) && curGainPct >= 0.003) {
+                    exitPrice = currentClose;
+                    exitReason = "MOMENTUM_EMA5_FADE";
+                    exitNote = `⚡ モメンタム失速・超短期EMA5割れ利食い約定 (微益確保: ¥${exitPrice.toLocaleString()})`;
+                }
+                // (G) 通常損切り (-1.2% 到達)
+                else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
+                    exitPrice = Math.min(pos.stopLossPrice, currentClose);
+                    exitReason = "STOP_LOSS";
+                    exitNote = `🛑 高速損切り約定 (-1.2%到達: ¥${exitPrice.toLocaleString()})`;
+                }
+                // (H) 保有期限満了 (6バー経過・約30分完結)
+                else if (pos.holdingBars >= 6 || elapsedMinutes >= 180) {
+                    exitPrice = currentClose;
+                    exitReason = "TIMEOUT";
+                    exitNote = `⌛ デイトレ保有期限満了決済 (当日6バー経過: ¥${exitPrice.toLocaleString()})`;
+                }
+            } else {
+                // スイング戦略 (戦略1 / 戦略2) の決済ロジック
+                if (currentClose >= pos.takeProfitPrice || (barsCount > 1 && currentHigh >= pos.takeProfitPrice)) {
+                    exitPrice = Math.max(pos.takeProfitPrice, currentClose);
+                    exitReason = "TAKE_PROFIT";
+                    exitNote = `🎯 自動利食い約定 (+6.0%達成: ¥${exitPrice.toLocaleString()})`;
+                } else if (currentClose <= pos.stopLossPrice || (barsCount > 1 && currentLow <= pos.stopLossPrice)) {
+                    exitPrice = Math.min(pos.stopLossPrice, currentClose);
+                    exitReason = "STOP_LOSS";
+                    exitNote = `🛑 自動損切り約定 (-2.5%到達: ¥${exitPrice.toLocaleString()})`;
+                } else if (pos.holdingBars >= 15) {
+                    exitPrice = currentClose;
+                    exitReason = "TIMEOUT";
+                    exitNote = `⌛ スイング保有期限満了決済 (15バー/3営業日経過: ¥${exitPrice.toLocaleString()})`;
+                }
             }
 
             if (exitPrice !== null && exitReason !== null) {
@@ -235,10 +270,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 symbolName: sym.info.name,
                                 entryTime: realtimeEntryTime,
                                 entryPrice: entryPrice,
+                                maxPrice: entryPrice,
                                 shares: orderCalc.shares,
                                 investmentAmount: orderCalc.investment,
-                                stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.025))),
-                                takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.060))),
+                                stopLossPrice: latest.stopLossPrice || (entryPrice * (1 - (stratInstance.params.stopLossPct || 0.012))),
+                                takeProfitPrice: latest.takeProfitPrice || (entryPrice * (1 + (stratInstance.params.takeProfitPct || 0.015))),
                                 strategyName: stratMeta.name,
                                 strategyDisplayName: stratMeta.displayName,
                                 holdingBars: 1,
@@ -746,7 +782,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             subBadge.style.borderColor = "rgba(0, 229, 255, 0.3)";
         } else if (isStrat3) {
             const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
-            subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (デイトレ) / 損切 -1.6% / 利確 +2.5% / 大引け全決済`;
+            subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (プロスキャル) / 損切 -1.2% / 利確 +1.5% (利益ロック+0.7%・動的トレーリング) / 大引け全決済`;
             subBadge.style.color = "#ffd740";
             subBadge.style.background = "rgba(255, 215, 64, 0.12)";
             subBadge.style.borderColor = "rgba(255, 215, 64, 0.4)";
@@ -806,8 +842,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (activePos) {
             const entryPrice = Number(activePos.entryPrice) || currentClose;
-            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.025 : 1.06));
-            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.984 : 0.975));
+            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.015 : 1.06));
+            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.988 : 0.975));
             const shares = Number(activePos.shares) || 100;
             const pnl = (currentClose - entryPrice) * shares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
@@ -816,7 +852,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const distTp = tpPrice - currentClose;
             const distSl = currentClose - slPrice;
             const holdingBars = activePos.holdingBars || 1;
-            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 8 : 15;
+            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 6 : 15;
             const remainBars = Math.max(0, maxBars - holdingBars);
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
@@ -839,21 +875,30 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ${stratBadge}
             `;
         } else {
-            const simTpPct = isStrategy3 ? 0.025 : 0.060;
-            const simSlPct = isStrategy3 ? 0.016 : 0.025;
+            const simTpPct = isStrategy3 ? 0.015 : 0.060;
+            const simSlPct = isStrategy3 ? 0.012 : 0.025;
             const simTp = currentClose * (1 + simTpPct);
             const simSl = currentClose * (1 - simSlPct);
+
+            let strategyInfoHtml = isStrategy3
+                ? `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
+                        🎯 高速利食い (+1.5%): ¥${simTp.toFixed(1)} (利益ロック+0.7%〜)
+                   </span>
+                   <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
+                        🛑 損切 (-1.2%): ¥${simSl.toFixed(1)}
+                   </span>`
+                : `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
+                        🎯 想定利確 (+${(simTpPct * 100).toFixed(1)}%): ¥${simTp.toFixed(1)}
+                   </span>
+                   <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
+                        🛑 想定損切 (-${(simSlPct * 100).toFixed(1)}%): ¥${simSl.toFixed(1)}
+                   </span>`;
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
                     📍 [${curIntervalName}] 最新レート: ¥${currentClose.toLocaleString()} (<span style="color:${diffColor}">${diffSign}${diff.toFixed(1)}円 / ${diffSign}${diffPct.toFixed(2)}%</span>)
                 </span>
-                <span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
-                    🎯 想定利確 (+${(simTpPct * 100).toFixed(1)}%): ¥${simTp.toFixed(1)}
-                </span>
-                <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
-                    🛑 想定損切 (-${(simSlPct * 100).toFixed(1)}%): ¥${simSl.toFixed(1)}
-                </span>
+                ${strategyInfoHtml}
             `;
         }
     }
@@ -870,7 +915,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 subBadge.style.color = "#00e5ff";
             } else if (isStrat3) {
                 const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
-                subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 損切 -1.6% / 利確 +2.5% / 大引け手仕舞い`;
+                subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (プロスキャル) / 損切 -1.2% / 利確 +1.5% / 大引け手仕舞い`;
                 subBadge.style.color = "#ffd740";
             } else {
                 subBadge.innerText = `時間軸: ${currentInterval} / 損切 -2.5% / 利確 +6.0%`;
