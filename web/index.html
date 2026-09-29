@@ -242,11 +242,14 @@
 
         <!-- 保有ポジション & トレード振り返りジャーナル -->
         <section class="card" style="margin-bottom: 20px;">
-            <div class="card-header">
-                <h2 class="card-title">💼 保有中ポジション (自動・手動リアルタイム管理)</h2>
-                <span class="chip-badge">最大同時保有: 3枠 (30万円)</span>
+            <div class="card-header" style="flex-wrap: wrap; gap: 8px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h2 class="card-title">💼 保有中ポジション (自動・手動リアルタイム管理)</h2>
+                    <span class="chip-badge" style="background: rgba(0, 229, 255, 0.15); color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.3);">最大同時保有: 3枠 (30万円)</span>
+                </div>
+                <span class="chip-badge" id="positions-count-badge">保有: 0件</span>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" style="max-height: 320px; overflow-y: auto;">
                 <table>
                     <thead>
                         <tr>
@@ -266,13 +269,35 @@
             </div>
         </section>
 
-        <!-- トレード振り返り履歴 -->
+        <!-- トレード振り返り履歴 (ページネーション対応) -->
         <section class="card">
-            <div class="card-header">
-                <h2 class="card-title">📖 トレード振り返りジャーナル (全トレード履歴)</h2>
-                <span class="chip-badge">LocalStorage & SQLite永続化</span>
+            <div class="card-header" style="flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <h2 class="card-title">📖 トレード振り返りジャーナル (全トレード履歴)</h2>
+                    <span class="chip-badge" id="trades-pagination-info" style="background: rgba(0, 230, 118, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green);">0件</span>
+                </div>
+                
+                <!-- フィルター & 1ページ件数切替コントロール -->
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <div class="filter-btn-group" id="trades-filter-group" style="display: flex; gap: 4px;">
+                        <button class="btn btn-secondary trades-filter-btn active" data-filter="all" style="padding: 4px 10px; font-size: 11px;">すべて</button>
+                        <button class="btn btn-secondary trades-filter-btn" data-filter="win" style="padding: 4px 10px; font-size: 11px; color: var(--accent-green);">勝ち (勝)</button>
+                        <button class="btn btn-secondary trades-filter-btn" data-filter="loss" style="padding: 4px 10px; font-size: 11px; color: var(--accent-red);">負け (敗)</button>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted);">
+                        <span>表示:</span>
+                        <select id="select-trades-per-page" class="input-field" style="padding: 4px 8px; font-size: 12px; width: auto; height: 32px; min-width: 80px;">
+                            <option value="10">10件</option>
+                            <option value="20" selected>20件 (推奨)</option>
+                            <option value="50">50件</option>
+                            <option value="100">100件</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div class="table-wrap">
+
+            <div class="table-wrap" style="max-height: 520px; overflow-y: auto;">
                 <table>
                     <thead>
                         <tr>
@@ -288,6 +313,16 @@
                         <!-- JSで動的生成 -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- ページネーション ページ送りフッター -->
+            <div id="trades-pagination-bar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
+                <div style="font-size: 12px; color: var(--text-muted);" id="trades-page-summary">
+                    ページ 1 / 1
+                </div>
+                <div style="display: flex; gap: 4px; align-items: center;" id="trades-page-buttons">
+                    <!-- JSで動的生成: 前へ / 1 / 2 / 次へ -->
+                </div>
             </div>
         </section>
 

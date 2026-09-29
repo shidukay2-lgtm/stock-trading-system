@@ -1307,21 +1307,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
     }
 
+    // --- トレード振り返りジャーナル用 ページネーション & フィルター状態 ---
+    let tradesCurrentPage = 1;
+    let tradesPageSize = 20; // ユーザー要望のデフォルト20件表示
+    let tradesFilter = "all"; // 'all', 'win', 'loss'
+
     // --- 9. ポジション一覧・履歴・KPI (戦略バッジ明示 & リアルタイム経過時間表示) ---
     function renderPositionsTable() {
         const tbody = document.getElementById("positions-table-body");
+        const countBadge = document.getElementById("positions-count-badge");
+        if (!tbody) return;
         tbody.innerHTML = "";
 
-        if (dataStore.positions.length === 0) {
+        const posCount = dataStore.positions ? dataStore.positions.length : 0;
+        if (countBadge) {
+            countBadge.innerText = `保有: ${posCount}件 / 最大3枠 (30万円)`;
+            countBadge.style.color = posCount > 0 ? "#00e5ff" : "var(--text-muted)";
+            countBadge.style.borderColor = posCount > 0 ? "#00e5ff" : "rgba(255,255,255,0.15)";
+        }
+
+        if (posCount === 0) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:20px;">現在保有中のポジションはありません（リアルタイム監視中）</td></tr>`;
             return;
         }
 
         dataStore.positions.forEach(pos => {
-            const sym = symbolsData.symbols[pos.symbol];
-            const currentPrice = sym ? sym.candles[sym.candles.length - 1].close : pos.entryPrice;
+            const sym = symbolsData && symbolsData.symbols ? symbolsData.symbols[pos.symbol] : null;
+            const currentPrice = (sym && sym.candles && sym.candles.length > 0) ? sym.candles[sym.candles.length - 1].close : pos.entryPrice;
             const pnl = (currentPrice - pos.entryPrice) * pos.shares;
-            const pnlPct = ((currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
+            const pnlPct = pos.entryPrice > 0 ? ((currentPrice - pos.entryPrice) / pos.entryPrice) * 100 : 0;
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
             const stratBadge = getStrategyBadgeHtml(pos.strategyName);
 
@@ -1346,10 +1360,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <span style="font-size:11px; color:#00e5ff;">⏰ ${pos.entryTime} <span style="color:var(--text-muted); font-size:10px;">${elapsedStr}</span></span><br>
                     ${stratBadge}
                 </td>
-                <td>¥${pos.entryPrice.toLocaleString()}</td>
-                <td>¥${currentPrice.toLocaleString()}</td>
+                <td>¥${Number(pos.entryPrice).toLocaleString()}</td>
+                <td>¥${Number(currentPrice).toLocaleString()}</td>
                 <td>${pos.shares} 株 (単元)</td>
-                <td>¥${pos.investmentAmount.toLocaleString()}</td>
+                <td>¥${Number(pos.investmentAmount).toLocaleString()}</td>
                 <td class="${colorClass}"><b>${pnl >= 0 ? '+' : ''}¥${Math.round(pnl).toLocaleString()}</b><br><span style="font-size:11px">(${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)</span></td>
                 <td><button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="window.appOpenExit('${pos.symbol}', ${currentPrice})">決済</button></td>
             `;
@@ -1364,33 +1378,186 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     function renderTradesTable() {
         const tbody = document.getElementById("trades-table-body");
+        const infoBadge = document.getElementById("trades-pagination-info");
+        const pageSummary = document.getElementById("trades-page-summary");
+        const pageButtons = document.getElementById("trades-page-buttons");
+        if (!tbody) return;
         tbody.innerHTML = "";
 
-        const allTrades = dataStore.trades;
-        if (allTrades.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:20px;">記録されたトレード履歴はありません</td></tr>`;
-            return;
+        const allTrades = dataStore.trades || [];
+        
+        // フィルター適用
+        let filteredTrades = allTrades;
+        if (tradesFilter === "win") {
+            filteredTrades = allTrades.filter(t => (t.pnl_amount || 0) > 0);
+        } else if (tradesFilter === "loss") {
+            filteredTrades = allTrades.filter(t => (t.pnl_amount || 0) <= 0);
         }
 
-        allTrades.slice(0, 20).forEach(t => {
-            const isWin = t.pnl_amount > 0;
-            const colorClass = isWin ? "val-green" : "val-red";
-            const stratBadge = getStrategyBadgeHtml(t.tags || t.notes);
+        const totalCount = filteredTrades.length;
+        const totalPages = Math.max(1, Math.ceil(totalCount / tradesPageSize));
+        
+        if (tradesCurrentPage > totalPages) tradesCurrentPage = totalPages;
+        if (tradesCurrentPage < 1) tradesCurrentPage = 1;
 
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>
-                    <span style="font-size:11px; color:var(--text-dim)">${t.exit_time}</span><br>
-                    <b>${t.symbol_name}</b><br>
-                    ${stratBadge}
-                </td>
-                <td>¥${t.entry_price.toLocaleString()} → ¥${t.exit_price.toLocaleString()}</td>
-                <td>${t.shares} 株 (¥${Math.round(t.investment_amount).toLocaleString()})</td>
-                <td class="${colorClass}"><b>${isWin ? '+' : ''}¥${t.pnl_amount.toLocaleString()}</b><br><span style="font-size:11px">${isWin ? '+' : ''}${t.pnl_pct}%</span></td>
-                <td><span class="chip-badge">${t.exit_reason}</span></td>
-                <td><span style="font-size:12px;">${t.notes || '-'}</span></td>
-            `;
-            tbody.appendChild(tr);
+        const startIndex = (tradesCurrentPage - 1) * tradesPageSize;
+        const endIndex = Math.min(startIndex + tradesPageSize, totalCount);
+        const pageTrades = filteredTrades.slice(startIndex, endIndex);
+
+        // バッジ & ページサマリー更新
+        if (infoBadge) {
+            const winCount = allTrades.filter(t => (t.pnl_amount || 0) > 0).length;
+            const winRate = allTrades.length > 0 ? ((winCount / allTrades.length) * 100).toFixed(1) : "0.0";
+            if (totalCount === 0) {
+                infoBadge.innerText = `0件 / 全${allTrades.length}件 (勝率 ${winRate}%)`;
+            } else {
+                infoBadge.innerText = `${startIndex + 1}〜${endIndex}件 / 全${allTrades.length}件 (勝率 ${winRate}%)`;
+            }
+        }
+
+        if (pageSummary) {
+            pageSummary.innerText = `ページ ${tradesCurrentPage} / ${totalPages} (表示中: ${totalCount === 0 ? 0 : startIndex + 1}〜${endIndex}件 / 対象 ${totalCount}件)`;
+        }
+
+        // テーブルボディ描画
+        if (pageTrades.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:24px;">該当するトレード履歴はありません</td></tr>`;
+        } else {
+            pageTrades.forEach(t => {
+                const isWin = (t.pnl_amount || 0) > 0;
+                const colorClass = isWin ? "val-green" : "val-red";
+                const stratBadge = getStrategyBadgeHtml(t.tags || t.notes);
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>
+                        <span style="font-size:11px; color:var(--text-dim)">${t.exit_time || '-'}</span><br>
+                        <b>${t.symbol_name || t.symbol}</b><br>
+                        ${stratBadge}
+                    </td>
+                    <td>¥${Number(t.entry_price || 0).toLocaleString()} → ¥${Number(t.exit_price || 0).toLocaleString()}</td>
+                    <td>${t.shares || 100} 株 (¥${Math.round(t.investment_amount || 0).toLocaleString()})</td>
+                    <td class="${colorClass}"><b>${isWin ? '+' : ''}¥${Number(t.pnl_amount || 0).toLocaleString()}</b><br><span style="font-size:11px">${isWin ? '+' : ''}${t.pnl_pct}%</span></td>
+                    <td><span class="chip-badge" style="font-size:10px;">${t.exit_reason || '-'}</span></td>
+                    <td><span style="font-size:12px; color:var(--text-muted);">${t.notes || '-'}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ページ送りボタン動的生成
+        if (pageButtons) {
+            pageButtons.innerHTML = "";
+
+            // 前へボタン
+            const prevBtn = document.createElement("button");
+            prevBtn.className = "page-btn";
+            prevBtn.innerHTML = "◀ 前へ";
+            prevBtn.disabled = (tradesCurrentPage <= 1);
+            prevBtn.addEventListener("click", () => {
+                if (tradesCurrentPage > 1) {
+                    tradesCurrentPage--;
+                    renderTradesTable();
+                }
+            });
+            pageButtons.appendChild(prevBtn);
+
+            // ページ番号ボタン（最大5個のスマート表示）
+            const maxVisibleButtons = 5;
+            let startPage = Math.max(1, tradesCurrentPage - Math.floor(maxVisibleButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisibleButtons - 1);
+            if (endPage - startPage + 1 < maxVisibleButtons) {
+                startPage = Math.max(1, endPage - maxVisibleButtons + 1);
+            }
+
+            if (startPage > 1) {
+                const firstBtn = document.createElement("button");
+                firstBtn.className = "page-btn";
+                firstBtn.innerText = "1";
+                firstBtn.addEventListener("click", () => {
+                    tradesCurrentPage = 1;
+                    renderTradesTable();
+                });
+                pageButtons.appendChild(firstBtn);
+
+                if (startPage > 2) {
+                    const ellipsis = document.createElement("span");
+                    ellipsis.innerText = "...";
+                    ellipsis.style.color = "var(--text-dim)";
+                    ellipsis.style.padding = "0 4px";
+                    ellipsis.style.fontSize = "12px";
+                    pageButtons.appendChild(ellipsis);
+                }
+            }
+
+            for (let p = startPage; p <= endPage; p++) {
+                const pBtn = document.createElement("button");
+                pBtn.className = `page-btn ${p === tradesCurrentPage ? 'active' : ''}`;
+                pBtn.innerText = String(p);
+                const targetP = p;
+                pBtn.addEventListener("click", () => {
+                    tradesCurrentPage = targetP;
+                    renderTradesTable();
+                });
+                pageButtons.appendChild(pBtn);
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement("span");
+                    ellipsis.innerText = "...";
+                    ellipsis.style.color = "var(--text-dim)";
+                    ellipsis.style.padding = "0 4px";
+                    ellipsis.style.fontSize = "12px";
+                    pageButtons.appendChild(ellipsis);
+                }
+
+                const lastBtn = document.createElement("button");
+                lastBtn.className = "page-btn";
+                lastBtn.innerText = String(totalPages);
+                lastBtn.addEventListener("click", () => {
+                    tradesCurrentPage = totalPages;
+                    renderTradesTable();
+                });
+                pageButtons.appendChild(lastBtn);
+            }
+
+            // 次へボタン
+            const nextBtn = document.createElement("button");
+            nextBtn.className = "page-btn";
+            nextBtn.innerHTML = "次へ ▶";
+            nextBtn.disabled = (tradesCurrentPage >= totalPages);
+            nextBtn.addEventListener("click", () => {
+                if (tradesCurrentPage < totalPages) {
+                    tradesCurrentPage++;
+                    renderTradesTable();
+                }
+            });
+            pageButtons.appendChild(nextBtn);
+        }
+    }
+
+    // ページネーション & フィルター コントロール初期化
+    function initTradesPaginationControls() {
+        const selectPerPage = document.getElementById("select-trades-per-page");
+        if (selectPerPage) {
+            selectPerPage.value = String(tradesPageSize);
+            selectPerPage.addEventListener("change", (e) => {
+                tradesPageSize = parseInt(e.target.value, 10) || 20;
+                tradesCurrentPage = 1;
+                renderTradesTable();
+            });
+        }
+
+        const filterBtns = document.querySelectorAll(".trades-filter-btn");
+        filterBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                filterBtns.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                tradesFilter = btn.dataset.filter || "all";
+                tradesCurrentPage = 1;
+                renderTradesTable();
+            });
         });
     }
 
@@ -1706,6 +1873,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 初期化と起動
     initStrategyControls();
     initChartTabs();
+    initTradesPaginationControls();
     initCapitalSettingsModal();
     initNotifySettingsModal();
     loadData(true);
