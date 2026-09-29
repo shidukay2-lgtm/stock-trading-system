@@ -497,17 +497,43 @@ class TradingChart {
             });
         }
 
-        // ズーム表示基準: 直近のローソク足にフォーカス (PC: 36本, スマホ: 22本)
-        const defaultVisibleBars = window.innerWidth < 768 ? 22 : 36;
-        const startIdx = Math.max(0, times.length - defaultVisibleBars);
-        const xStart = times[startIdx];
-        const xEnd = times[times.length - 1];
+        // ズーム表示基準: 一般的なweb株サイト（TradingView/Yahooファイナンス）標準の直近約45〜50本に最適フォーカス
+        const totalCandles = times.length;
+        const defaultVisibleBars = window.innerWidth < 768 ? 28 : 48;
+        const startIdx = Math.max(0, totalCandles - defaultVisibleBars);
+        const endIdx = totalCandles - 1;
+
+        // カテゴリ軸で直近足 + 右側に3.5本分の未来余白を確保 (現在値バッジや目標ラインがローソク足に被らず快適)
+        const xRange = [startIdx - 0.5, endIdx + 3.5];
+
+        // 直近表示範囲の最高値・最安値を計算してY軸（価格軸）をダイナミックにフィット
+        const visibleCandles = analyzedCandles.slice(startIdx);
+        const recentHighs = visibleCandles.map(c => Number(c.high) || Number(c.close));
+        const recentLows = visibleCandles.map(c => Number(c.low) || Number(c.close));
+        let yMin = Math.min(...recentLows);
+        let yMax = Math.max(...recentHighs);
+
+        // 現在値・利確・損切ラインも視野に収める
+        if (activePosition) {
+            const tpP = Number(activePosition.takeProfitPrice);
+            const slP = Number(activePosition.stopLossPrice);
+            if (tpP && tpP > yMax) yMax = tpP;
+            if (slP && slP < yMin) yMin = slP;
+        } else {
+            const simTp = currentPrice * (1 + (isStrategy3 ? 0.025 : 0.060));
+            const simSl = currentPrice * (1 - (isStrategy3 ? 0.016 : 0.025));
+            if (simTp > yMax) yMax = simTp;
+            if (simSl < yMin) yMin = simSl;
+        }
+
+        const yPadding = Math.max(2, (yMax - yMin) * 0.12);
+        const yRange = [Math.floor(yMin - yPadding), Math.ceil(yMax + yPadding)];
 
         // 外部凡例バーの動的更新（チャート内の邪魔な被りを完全解消）
         const legendContainer = document.getElementById("legend-items");
         if (legendContainer) {
             let legendHtml = `
-                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:10px; height:10px; background:#00e676; border-radius:2px;"></span><span style="color:var(--text-muted);">株価 OHLC</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:10px; height:10px; background:#00e676; border-radius:2px;"></span><span style="color:var(--text-muted); font-weight:600;">株価 OHLC</span></span>
             `;
             if (isStrategy3) {
                 legendHtml += `
@@ -545,32 +571,36 @@ class TradingChart {
             paper_bgcolor: "#0b0f19",
             plot_bgcolor: "#111827",
             margin: { l: 45, r: 155, t: 15, b: 35 },
-            height: window.innerWidth < 768 ? 480 : 580,
+            height: window.innerWidth < 768 ? 500 : 620,
             showlegend: false, // チャート内の凡例ボックスを非表示化しクリアな視認性を確保
-            dragmode: "pan",   // ドラッグで直感的にチャートを左右・上下に移動 (Pan) 可能に！
+            dragmode: "pan",   // ドラッグで直感的にチャートを左右・上下に移動 (Pan) 可能
             hovermode: "x unified",
             xaxis: {
-                range: [xStart, xEnd], // 初期ズーム基準: 直近のローソク足に最適フォーカス！
+                type: "category", // 休場ギャップを排除し、ローソク足を肉厚で一定の太さに揃える
+                range: xRange,    // 直近48本 + 未来余白にピタッとフォーカス
                 rangeslider: { visible: false },
                 gridcolor: "#1f293d",
                 domain: [0, 1]
             },
             yaxis: {
-                domain: [0.45, 1.0],
+                domain: [0.34, 1.0], // メインチャートを広大な66%領域に拡大
                 gridcolor: "#1f293d",
                 title: "株価 (円)",
-                autorange: true
+                range: yRange,       // 直近の株価レンジにダイナミックフィット
+                fixedrange: false
             },
             yaxis2: {
-                domain: [0.22, 0.40],
+                domain: [0.18, 0.31],
                 gridcolor: "#1f293d",
-                title: y2Title
+                title: y2Title,
+                fixedrange: false
             },
             yaxis3: {
-                domain: [0.0, 0.18],
+                domain: [0.0, 0.15],
                 gridcolor: "#1f293d",
                 title: "RSI",
-                range: [10, 90]
+                range: [10, 90],
+                fixedrange: false
             },
             shapes: shapes,
             annotations: annotations
@@ -579,7 +609,7 @@ class TradingChart {
         const config = {
             responsive: true,
             displayModeBar: true,
-            modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+            modeBarButtonsToRemove: ['select2d', 'lasso2d'],
             displaylogo: false,
             scrollZoom: true,   // ホイールスクロールやピンチでスムーズ拡大縮小
             doubleClick: 'reset' // ダブルクリックで直近足基準の最適ズームにリセット
