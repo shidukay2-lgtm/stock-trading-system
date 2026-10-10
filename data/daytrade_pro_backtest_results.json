@@ -1,0 +1,107 @@
+{
+  "strategy": "HighWin_DayTrade_Pro",
+  "overall_win_rate": 81.0,
+  "overall_profit_factor": 2.89,
+  "total_trades": 21,
+  "total_wins": 17,
+  "total_losses": 4,
+  "total_pnl": 5859,
+  "symbols": {
+    "7354.T": {
+      "name": "DmMiX",
+      "metrics": {
+        "trades_count": 2,
+        "win_count": 2,
+        "loss_count": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": 99.9,
+        "total_pnl_amount": 1165,
+        "avg_bars_held": 2.5
+      }
+    },
+    "5240.T": {
+      "name": "monoAI",
+      "metrics": {
+        "trades_count": 4,
+        "win_count": 4,
+        "loss_count": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": 99.9,
+        "total_pnl_amount": 2750,
+        "avg_bars_held": 2.0
+      }
+    },
+    "3903.T": {
+      "name": "gumi",
+      "metrics": {
+        "trades_count": 2,
+        "win_count": 1,
+        "loss_count": 1,
+        "win_rate_pct": 50.0,
+        "profit_factor": 0.08,
+        "total_pnl_amount": -819,
+        "avg_bars_held": 1.5
+      }
+    },
+    "3936.T": {
+      "name": "グローバルウェイ",
+      "metrics": {
+        "trades_count": 3,
+        "win_count": 2,
+        "loss_count": 1,
+        "win_rate_pct": 66.7,
+        "profit_factor": 2.18,
+        "total_pnl_amount": 1138,
+        "avg_bars_held": 1.7
+      }
+    },
+    "4477.T": {
+      "name": "BASE",
+      "metrics": {
+        "trades_count": 1,
+        "win_count": 1,
+        "loss_count": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": 99.9,
+        "total_pnl_amount": 214,
+        "avg_bars_held": 4.0
+      }
+    },
+    "5026.T": {
+      "name": "トリプルアイズ",
+      "metrics": {
+        "trades_count": 3,
+        "win_count": 2,
+        "loss_count": 1,
+        "win_rate_pct": 66.7,
+        "profit_factor": 1.01,
+        "total_pnl_amount": 8,
+        "avg_bars_held": 3.0
+      }
+    },
+    "2158.T": {
+      "name": "FRONTEO",
+      "metrics": {
+        "trades_count": 2,
+        "win_count": 2,
+        "loss_count": 0,
+        "win_rate_pct": 100.0,
+        "profit_factor": 99.9,
+        "total_pnl_amount": 933,
+        "avg_bars_held": 2.5
+      }
+    },
+    "7085.T": {
+      "name": "カーブスHD",
+      "metrics": {
+        "trades_count": 4,
+        "win_count": 3,
+        "loss_count": 1,
+        "win_rate_pct": 75.0,
+        "profit_factor": 1.81,
+        "total_pnl_amount": 470,
+        "avg_bars_held": 4.0
+      }
+    }
+  }
+}

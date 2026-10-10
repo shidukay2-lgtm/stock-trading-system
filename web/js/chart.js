@@ -29,9 +29,7 @@ class TradingChart {
         const priceChange = currentPrice - prevPrice;
         const priceChangePct = prevPrice > 0 ? (priceChange / prevPrice) * 100 : 0;
         const changeSign = priceChange >= 0 ? "+" : "";
-
-        const isStrategy3 = (strategyId === "mtf_scalping") || Boolean(analyzedCandles[0] && analyzedCandles[0].strategyName && analyzedCandles[0].strategyName.includes("Scalping"));
-        const isStrategy2 = !isStrategy3 && ((strategyId === "orderbook_vwap") || Boolean(analyzedCandles[0] && analyzedCandles[0].vwap !== undefined && !analyzedCandles[0].strategyName));
+        const isDayTradePro = true;
 
         const intervalLabels = {
             "5m": "5分足 (5m 高速スキャル)",
@@ -63,8 +61,8 @@ class TradingChart {
             }
         ];
 
-        if (isStrategy3) {
-            // 戦略3 (プロ仕様高速スキャル・デイトレ): 短期VWAP + EMA5 + EMA10 + EMA25 + EMA50 + 板気配インバランス
+        if (isDayTradePro) {
+            // 新・高勝率プロデイトレ戦略: VWAP + EMA5 + EMA10 + EMA25 + EMA50 + 板気配比率
             const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
             const ema5 = analyzedCandles.map(c => c.ema5 !== undefined ? c.ema5 : (c.ema10 !== undefined ? c.ema10 : c.close));
             const ema10 = analyzedCandles.map(c => c.ema10 !== undefined ? c.ema10 : c.close);
@@ -228,23 +226,23 @@ class TradingChart {
 
         // 買いシグナルマーカー (▲)
         if (buyTimes.length > 0) {
-            const tpPctDefault = isStrategy3 ? 1.015 : 1.06;
-            const slPctDefault = isStrategy3 ? 0.988 : 0.975;
-            const tpStr = isStrategy3 ? "+1.5%" : "+6.0%";
-            const slStr = isStrategy3 ? "-1.2%" : "-2.5%";
-            const holdRuleStr = isStrategy3 ? "利益ロック+0.7%・動的トレーリング利食い・最大6バー (当日大引け手仕舞い)" : "最大15バー (3営業日)";
+            const tpPctDefault = 1.018;
+            const slPctDefault = 0.990;
+            const tpStr = "+1.8%";
+            const slStr = "-1.0%";
+            const holdRuleStr = "利確+1.8%・損切-1.0%・動的トレーリング利食い・当日大引け手仕舞い厳守";
 
             traces.push({
                 type: "scatter",
                 mode: "markers",
                 x: buyTimes,
                 y: buyPrices,
-                name: isStrategy3 ? "⚡ 戦略3 BUYシグナル (▲)" : "BUY シグナル (▲)",
-                marker: { symbol: "triangle-up", size: 14, color: isStrategy3 ? "#ffd740" : "#00e676", line: { width: 1.5, color: "#ffffff" } },
+                name: "⚡ デイトレ BUYシグナル (▲)",
+                marker: { symbol: "triangle-up", size: 14, color: "#00e676", line: { width: 1.5, color: "#ffffff" } },
                 hovertext: buySignals.map(s => {
                     const tpVal = s.takeProfitPrice ? s.takeProfitPrice.toFixed(1) : (s.close * tpPctDefault).toFixed(1);
                     const slVal = s.stopLossPrice ? s.stopLossPrice.toFixed(1) : (s.close * slPctDefault).toFixed(1);
-                    return `【${isStrategy3 ? '⚡ 戦略3 プロスキャル BUYシグナル' : '🔔 BUY推奨シグナル点灯'}】<br>時間軸: ${currentIntervalLabel}<br>日時: ${s.time}<br>株価: ¥${s.close}<br>利確目標(${tpStr}): ¥${tpVal}<br>損切ライン(${slStr}): ¥${slVal}<br>ルール: ${holdRuleStr}`;
+                    return `【⚡ 高勝率プロデイトレ BUYシグナル】<br>時間軸: ${currentIntervalLabel}<br>日時: ${s.time}<br>株価: ¥${s.close}<br>利確目標(${tpStr}): ¥${tpVal}<br>損切ライン(${slStr}): ¥${slVal}<br>ルール: ${holdRuleStr}`;
                 }),
                 hoverinfo: "text",
                 xaxis: "x",
@@ -252,13 +250,13 @@ class TradingChart {
             });
         }
 
-        // RSI(14 / 9) (サブプロット3)
+        // RSI(9) (サブプロット3)
         traces.push({
             type: "scatter",
             mode: "lines",
             x: times,
             y: rsi,
-            name: isStrategy3 ? "RSI(9)" : "RSI(14)",
+            name: "RSI(9)",
             line: { color: "#ffd740", width: 1.8 },
             xaxis: "x",
             yaxis: "y3"

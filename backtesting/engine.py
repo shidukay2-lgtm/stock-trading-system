@@ -101,18 +101,40 @@ class BacktestEngine:
                 exit_price = None
                 exit_reason = None
 
-                # (1) 損切り判定 (Lowがストップロス価格に到達: -3%以内)
-                if low_p <= current_position.stop_loss_price:
-                    exit_price = current_position.stop_loss_price * (1.0 - self.settings.SLIPPAGE_RATE)
-                    exit_reason = ExitReason.STOP_LOSS
+                # 最高値の追跡
+                current_position.max_price = max(getattr(current_position, 'max_price', 0.0) or current_position.entry_price, high_p)
+                peak_gain = (current_position.max_price - current_position.entry_price) / current_position.entry_price
 
-                # (2) 利確判定 (Highが利確価格に到達: +6%以上)
-                elif high_p >= current_position.take_profit_price:
+                trailing_trigger = self.strategy.params.get("trailing_trigger_pct", 0.010)
+                trailing_fall = self.strategy.params.get("trailing_fall_pct", 0.003)
+                profit_lock_trigger = self.strategy.params.get("profit_lock_trigger", 0.008)
+                profit_lock_price_pct = self.strategy.params.get("profit_lock_price_pct", 0.001)
+
+                is_diff_date = hasattr(timestamp, 'date') and hasattr(current_position.entry_time, 'date') and (timestamp.date() != current_position.entry_time.date())
+                is_market_close_bar = hasattr(timestamp, 'hour') and (timestamp.hour >= 15 or (timestamp.hour == 14 and getattr(timestamp, 'minute', 0) >= 50))
+
+                # (1) 基本利確判定 (+1.8%以上)
+                if high_p >= current_position.take_profit_price:
                     exit_price = current_position.take_profit_price * (1.0 - self.settings.SLIPPAGE_RATE)
                     exit_reason = ExitReason.TAKE_PROFIT
 
-                # (3) タイムアウト判定 (3営業日 / 15バー経過)
-                elif current_position.holding_bars >= max_holding_bars:
+                # (2) 動的トレーリング利食い (+1.0%到達後、ピークから0.3%反落で勝ち逃げ利食い)
+                elif peak_gain >= trailing_trigger and close_p <= current_position.max_price * (1.0 - trailing_fall):
+                    exit_price = max(current_position.entry_price * 1.002, close_p) * (1.0 - self.settings.SLIPPAGE_RATE)
+                    exit_reason = ExitReason.TAKE_PROFIT
+
+                # (3) プロフィットロック同値微益ガード (+0.8%到達後、買値微益で撤退)
+                elif peak_gain >= profit_lock_trigger and low_p <= current_position.entry_price * (1.0 + profit_lock_price_pct):
+                    exit_price = current_position.entry_price * (1.0 + profit_lock_price_pct)
+                    exit_reason = ExitReason.TAKE_PROFIT
+
+                # (4) 損切り判定 (Lowがストップロス価格に到達: -1.0%)
+                elif low_p <= current_position.stop_loss_price:
+                    exit_price = current_position.stop_loss_price * (1.0 - self.settings.SLIPPAGE_RATE)
+                    exit_reason = ExitReason.STOP_LOSS
+
+                # (5) デイトレ大引け手仕舞い or 保有バー満了 (当日完結・持ち越しゼロ)
+                elif is_diff_date or is_market_close_bar or current_position.holding_bars >= max_holding_bars:
                     exit_price = close_p * (1.0 - self.settings.SLIPPAGE_RATE)
                     exit_reason = ExitReason.TIMEOUT
 
@@ -154,7 +176,15 @@ class BacktestEngine:
                     current_position = None
 
             # --- エントリー判定 ---
-            if current_position is None and signal == 1 and i < len(signal_df) - 1:
+            is_entry_time_valid = True
+            is_morning_only = self.strategy.params.get("morning_only", False)
+            if hasattr(timestamp, 'hour'):
+                if is_morning_only:
+                    is_entry_time_valid = timestamp.hour in [9, 10]
+                elif timestamp.hour >= 15 or (timestamp.hour == 14 and getattr(timestamp, 'minute', 0) >= 15):
+                    is_entry_time_valid = False
+
+            if current_position is None and signal == 1 and is_entry_time_valid and i < len(signal_df) - 1:
                 # 買いエントリー（スリッページ考慮）
                 entry_price = close_p * (1.0 + self.settings.SLIPPAGE_RATE)
                 shares, investment = self.calculate_position_size(entry_price, portfolio.cash)

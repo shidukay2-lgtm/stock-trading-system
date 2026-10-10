@@ -65,9 +65,10 @@ class Position:
     entry_price: float
     shares: int
     investment_amount: float          # 投資金額（常に10万円以下）
-    stop_loss_price: float            # 損切り価格 (-3%以内)
-    take_profit_price: float          # 利確価格 (+6%以上)
+    stop_loss_price: float            # 損切り価格
+    take_profit_price: float          # 利確価格
     current_price: float = 0.0
+    max_price: float = 0.0
     holding_bars: int = 0             # 保有バー数 (1h足換算)
     strategy_name: str = ""
     notes: str = ""

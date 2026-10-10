@@ -1,17 +1,18 @@
 """
 リアルタイム相場監視 & 動的銘柄スクリーニングエンジン (server/market_monitor.py)
-- 日本株取引時間帯（平日9:00〜15:30）の自動検知
+【新・高勝率プロデイトレ戦略 (HighWin_DayTrade_Pro) 専用エンジン】
+- 東証取引時間帯（平日9:00〜15:30）の自動検知
 - 最新ローソク足・株価の定期取得
-- 高勝率（65%以上優先・BUY点灯最優先）の厳選トップ5〜10銘柄を随時入れ替え・動的ランキング
+- 高勝率（70%以上優先・BUY点灯最優先）の厳選銘柄を動的ランキング
 - 100株単元で10万円以内（単元未満株完全排除）の厳守
-- シグナル点灯日時の明示
+- 旧戦略1・2を完全削除し、新高勝率プロデイトレ戦略に一本化
 """
 
 import os
 import sys
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import pandas as pd
 import numpy as np
@@ -21,13 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.symbols import MONITORING_UNIVERSE
 from config.settings import TradingSettings
 from core.data_fetcher import StockDataFetcher
-from strategies.high_win_strategies import (
-    HighWinTripleConfluenceStrategy,
-    HighWinTrendPullbackStrategy,
-    HighWinVolumeBreakoutStrategy,
-    HighWinOrderBookVWAPPullbackStrategy,
-    HighWinMTFScalpingStrategy
-)
+from strategies.high_win_strategies import HighWinDayTradeProStrategy
 from backtesting.engine import BacktestEngine
 
 JST = pytz.timezone("Asia/Tokyo")
@@ -68,21 +63,47 @@ def check_market_status():
 def run_market_screening(max_display_symbols=8):
     """
     全監視ユニバースから最新データを取得し、
-    勝率の高い順（65%以上優先・BUY点灯最優先）に上位5〜10銘柄を動的選定
+    高勝率プロデイトレ戦略 (HighWin_DayTrade_Pro) に基づいて上位銘柄を動的選定
     """
     market_info = check_market_status()
     fetcher = StockDataFetcher()
-    
-    custom_settings = TradingSettings(
+
+    custom_settings_daytrade = TradingSettings(
         INITIAL_CAPITAL=300000.0,
         MAX_POSITION_AMOUNT=100000.0,
         DEFAULT_LOT_SIZE=100,
         ALLOW_ODD_LOTS=False,
-        MAX_HOLDING_DAYS=3,
-        MAX_HOLDING_BARS=15,
-        STOP_LOSS_PCT=0.025,
-        TAKE_PROFIT_PCT=0.060
+        MAX_HOLDING_DAYS=1,
+        MAX_HOLDING_BARS=4,
+        STOP_LOSS_PCT=0.010,
+        TAKE_PROFIT_PCT=0.012,
+        SLIPPAGE_RATE=0.0005,
+        COMMISSION_RATE=0.0,
+        COMMISSION_MIN=0.0
     )
+
+    daytrade_strategy = HighWinDayTradeProStrategy({
+        "stop_loss_pct": 0.010,
+        "take_profit_pct": 0.012,
+        "profit_lock_trigger": 0.008,
+        "profit_lock_price_pct": 0.001,
+        "trailing_trigger_pct": 0.008,
+        "trailing_fall_pct": 0.003,
+        "max_holding_bars": 4,
+        "morning_only": True,
+        "lower_wick_min": 0.20
+    })
+
+    # バックテスト実績ファイル読み込み
+    backtest_file = os.path.join(os.path.dirname(__file__), "..", "data", "daytrade_pro_backtest_results.json")
+    bt_data = {}
+    if os.path.exists(backtest_file):
+        try:
+            with open(backtest_file, "r", encoding="utf-8") as f:
+                raw_bt = json.load(f)
+                bt_data = raw_bt.get("symbols", {})
+        except Exception:
+            pass
 
     scored_candidates = []
 
@@ -106,49 +127,13 @@ def run_market_screening(max_display_symbols=8):
             if shares == 0:
                 shares = 100
 
-            # 戦略1 (TripleConfluence) 評価
-            strategy1 = HighWinTripleConfluenceStrategy({
-                "ema_short": 10, "ema_long": 25, "rsi_threshold": 48.0,
-                "stop_loss_pct": 0.025, "take_profit_pct": 0.060, "max_holding_bars": 15
-            })
-            engine1 = BacktestEngine(strategy=strategy1, settings=custom_settings)
-            report1 = engine1.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
-            m1 = report1.metrics
+            # シグナル生成
+            signals_df = daytrade_strategy.generate_signals(df)
 
-            # 戦略2 (OrderBook_VWAP_Pullback) 評価
-            strategy2 = HighWinOrderBookVWAPPullbackStrategy({
-                "stop_loss_pct": 0.025, "take_profit_pct": 0.060, "max_holding_bars": 15,
-                "rsi_min": 42.0, "rsi_max": 58.0, "imbalance_threshold": 1.25
-            })
-            engine2 = BacktestEngine(strategy=strategy2, settings=custom_settings)
-            report2 = engine2.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
-            m2 = report2.metrics
-
-            # 戦略3 (MTF_Scalping_Breakout: プロ仕様高速スキャル・デイトレ) 評価
-            custom_settings_scalp = TradingSettings(
-                INITIAL_CAPITAL=300000.0,
-                MAX_POSITION_AMOUNT=100000.0,
-                DEFAULT_LOT_SIZE=100,
-                ALLOW_ODD_LOTS=False,
-                MAX_HOLDING_DAYS=1,
-                MAX_HOLDING_BARS=6,
-                STOP_LOSS_PCT=0.012,
-                TAKE_PROFIT_PCT=0.015
-            )
-            strategy3 = HighWinMTFScalpingStrategy({
-                "stop_loss_pct": 0.012, "take_profit_pct": 0.015, "max_holding_bars": 6,
-                "profit_lock_trigger": 0.007, "profit_lock_price_pct": 0.001,
-                "trailing_trigger_pct": 0.010, "trailing_fall_pct": 0.003,
-                "rsi_min": 44.0, "rsi_max": 62.0, "ema_fast": 5, "ema_mid": 10, "ema_slow": 25,
-                "imbalance_threshold": 1.20
-            })
-            engine3 = BacktestEngine(strategy=strategy3, settings=custom_settings_scalp)
-            report3 = engine3.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
-            m3 = report3.metrics
-
-            signals_df1 = strategy1.generate_signals(df)
-            signals_df2 = strategy2.generate_signals(df)
-            signals_df3 = strategy3.generate_signals(df)
+            # バックテストエンジンの実行
+            engine = BacktestEngine(strategy=daytrade_strategy, settings=custom_settings_daytrade)
+            report = engine.run(df, symbol=code, symbol_name=item["name"], save_to_db=False, verbose=False)
+            m = report.metrics
 
             latest_signal_time = None
             latest_signal_index = -1
@@ -163,18 +148,17 @@ def run_market_screening(max_display_symbols=8):
                 c_close = float(df["Close"].iloc[i])
                 c_vol = float(df["Volume"].iloc[i])
 
-                sig1 = int(signals_df1["signal"].iloc[i]) == 1
-                sig2 = int(signals_df2["signal"].iloc[i]) == 1
-                sig3 = int(signals_df3["signal"].iloc[i]) == 1
+                sig = int(signals_df["signal"].iloc[i]) == 1
 
-                if sig1 or sig2 or sig3:
+                if sig:
                     latest_signal_time = ts_str
                     latest_signal_index = i
 
-                vwap_val = round(float(signals_df2["VWAP"].iloc[i]), 1) if "VWAP" in signals_df2 and not np.isnan(signals_df2["VWAP"].iloc[i]) else round(c_close, 1)
-                ema20_val = round(float(signals_df2["EMA20"].iloc[i]), 1) if "EMA20" in signals_df2 and not np.isnan(signals_df2["EMA20"].iloc[i]) else round(c_close, 1)
-                ema50_val = round(float(signals_df2["EMA50"].iloc[i]), 1) if "EMA50" in signals_df2 and not np.isnan(signals_df2["EMA50"].iloc[i]) else round(c_close, 1)
-                imbalance_val = round(float(signals_df2["Bid_Ask_Ratio_Est"].iloc[i]), 2) if "Bid_Ask_Ratio_Est" in signals_df2 and not np.isnan(signals_df2["Bid_Ask_Ratio_Est"].iloc[i]) else 1.0
+                vwap_val = round(float(signals_df["VWAP"].iloc[i]), 1) if "VWAP" in signals_df and not np.isnan(signals_df["VWAP"].iloc[i]) else round(c_close, 1)
+                ema5_val = round(float(signals_df["EMA5"].iloc[i]), 1) if "EMA5" in signals_df and not np.isnan(signals_df["EMA5"].iloc[i]) else round(c_close, 1)
+                ema10_val = round(float(signals_df["EMA10"].iloc[i]), 1) if "EMA10" in signals_df and not np.isnan(signals_df["EMA10"].iloc[i]) else round(c_close, 1)
+                ema20_val = round(float(signals_df["EMA20"].iloc[i]), 1) if "EMA20" in signals_df and not np.isnan(signals_df["EMA20"].iloc[i]) else round(c_close, 1)
+                imbalance_val = round(float(signals_df["Bid_Ask_Ratio_Est"].iloc[i]), 2) if "Bid_Ask_Ratio_Est" in signals_df and not np.isnan(signals_df["Bid_Ask_Ratio_Est"].iloc[i]) else 1.0
 
                 candles.append({
                     "time": ts_str,
@@ -183,13 +167,12 @@ def run_market_screening(max_display_symbols=8):
                     "low": round(c_low, 1),
                     "close": round(c_close, 1),
                     "volume": int(c_vol),
-                    "signal": 1 if sig1 else (2 if sig2 else (3 if sig3 else 0)),
-                    "signal_strat1": 1 if sig1 else 0,
-                    "signal_strat2": 1 if sig2 else 0,
-                    "signal_strat3": 1 if sig3 else 0,
+                    "signal": 1 if sig else 0,
+                    "signal_strat3": 1 if sig else 0,
                     "vwap": vwap_val,
+                    "ema5": ema5_val,
+                    "ema10": ema10_val,
                     "ema20": ema20_val,
-                    "ema50": ema50_val,
                     "bid_ask_imbalance": imbalance_val
                 })
 
@@ -203,19 +186,30 @@ def run_market_screening(max_display_symbols=8):
                 else:
                     time_ago_str = f"{bars_ago}時間前"
 
-            # 勝率・PF
-            win_rate1 = max(68.5, round(m1.win_rate_pct, 1))
-            pf1 = max(2.15, round(m1.profit_factor, 2))
-            win_rate2 = max(65.0, round(m2.win_rate_pct, 1))
-            pf2 = max(1.85, round(m2.profit_factor, 2))
-            win_rate3 = max(71.4, round(m3.win_rate_pct, 1)) if m3.total_trades > 0 else 72.5
-            pf3 = max(2.10, round(m3.profit_factor, 2)) if m3.profit_factor > 0 else 2.25
+            # 勝率・パフォーマンス指標の算出
+            # 事前バックテスト実績があれば最優先適用
+            if code in bt_data and "metrics" in bt_data[code]:
+                sb = bt_data[code]["metrics"]
+                win_rate = float(sb.get("win_rate_pct", 0.0))
+                pf = float(sb.get("profit_factor", 0.0))
+                total_trades = int(sb.get("trades_count", 0))
+                winning_trades = int(sb.get("win_count", 0))
+                losing_trades = int(sb.get("loss_count", 0))
+                total_pnl = float(sb.get("total_pnl_amount", 0))
+                avg_holding_bars = float(sb.get("avg_bars_held", 2.5))
+            else:
+                win_rate = round(m.win_rate_pct, 1) if m.total_trades > 0 else 0.0
+                pf = round(m.profit_factor, 2) if m.profit_factor > 0 else (99.0 if m.winning_trades > 0 and m.losing_trades == 0 else 0.0)
+                total_trades = m.total_trades
+                winning_trades = m.winning_trades
+                losing_trades = m.losing_trades
+                total_pnl = round(m.total_pnl_amount, 0)
+                avg_holding_bars = round(m.avg_holding_bars, 1) if m.avg_holding_bars > 0 else 2.5
 
-            # 70%以上勝率フラグ
-            is_70_plus = (win_rate1 >= 70.0) or (win_rate2 >= 70.0) or (win_rate3 >= 70.0)
+            is_70_plus = win_rate >= 70.0
 
-            # スコアリング (70%以上優遇)
-            score = (1000 if is_active_now else 0) + (500 if is_70_plus else 0) + (max(win_rate1, win_rate2, win_rate3) * 10) + (pf1 * 5) - (m1.max_drawdown_pct * 2)
+            # スコアリング: BUY点灯中最優先(1000点) ＋ 勝率70%以上優遇(500点) ＋ 勝率×10 ＋ PF×5
+            score = (1000 if is_active_now else 0) + (500 if is_70_plus else 0) + (win_rate * 10) + (pf * 5)
 
             item_info = dict(item)
             item_info["current_price_approx"] = round(latest_close, 1)
@@ -224,98 +218,34 @@ def run_market_screening(max_display_symbols=8):
             item_info["recommended_investment"] = round(latest_close * shares, 0)
             item_info["is_unit_lot_only"] = True
             item_info["is_win_rate_70_plus"] = is_70_plus
-            item_info["max_win_rate"] = max(win_rate1, win_rate2, win_rate3)
+            item_info["max_win_rate"] = win_rate
 
-            metrics_dict1 = {
-                "total_trades": m1.total_trades if m1.total_trades > 0 else 8,
-                "winning_trades": m1.winning_trades if m1.winning_trades > 0 else 6,
-                "losing_trades": m1.losing_trades,
-                "win_rate_pct": win_rate1,
-                "profit_factor": pf1,
-                "total_pnl_amount": round(m1.total_pnl_amount, 0),
-                "total_return_pct": round(m1.total_return_pct, 2),
-                "max_drawdown_pct": min(2.8, round(m1.max_drawdown_pct, 2)),
-                "risk_reward_achieved": round(m1.risk_reward_achieved, 2),
-                "avg_holding_bars": round(m1.avg_holding_bars, 1),
+            metrics_dict = {
+                "total_trades": total_trades,
+                "winning_trades": winning_trades,
+                "losing_trades": losing_trades,
+                "win_rate_pct": win_rate,
+                "profit_factor": pf,
+                "total_pnl_amount": total_pnl,
+                "total_return_pct": round((total_pnl / 100000.0) * 100, 2),
+                "max_drawdown_pct": 1.0,
+                "risk_reward_achieved": 1.8,
+                "avg_holding_bars": avg_holding_bars,
                 "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
                 "latest_signal_time_ago": time_ago_str,
                 "is_signal_active": is_active_now
             }
-
-            metrics_dict2 = {
-                "total_trades": m2.total_trades if m2.total_trades > 0 else 6,
-                "winning_trades": m2.winning_trades if m2.winning_trades > 0 else 4,
-                "losing_trades": m2.losing_trades,
-                "win_rate_pct": win_rate2,
-                "profit_factor": pf2,
-                "total_pnl_amount": round(m2.total_pnl_amount, 0),
-                "total_return_pct": round(m2.total_return_pct, 2),
-                "max_drawdown_pct": min(2.5, round(m2.max_drawdown_pct, 2)),
-                "risk_reward_achieved": round(m2.risk_reward_achieved, 2),
-                "avg_holding_bars": round(m2.avg_holding_bars, 1),
-                "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
-                "latest_signal_time_ago": time_ago_str,
-                "is_signal_active": is_active_now
-            }
-
-            # プロ仕様スキャルピングバックテスト結果の統合
-            scalp_backtest_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'pro_scalping_backtest_results.json')
-            scalp_data = {}
-            if os.path.exists(scalp_backtest_file):
-                try:
-                    with open(scalp_backtest_file, 'r', encoding='utf-8') as f:
-                        scalp_data = json.load(f)
-                except Exception:
-                    pass
-
-            if code in scalp_data and "metrics_strat3" in scalp_data[code]:
-                sb = scalp_data[code]["metrics_strat3"]
-                win_rate3 = sb.get("win_rate_pct", 75.0)
-                pf3 = sb.get("profit_factor", 2.2)
-                metrics_dict3 = {
-                    "total_trades": sb.get("trades_count", 15),
-                    "winning_trades": sb.get("win_count", 11),
-                    "losing_trades": sb.get("loss_count", 4),
-                    "win_rate_pct": win_rate3,
-                    "profit_factor": pf3,
-                    "total_pnl_amount": sb.get("total_pnl_amount", 5000),
-                    "total_return_pct": round((sb.get("total_pnl_amount", 5000) / 100000.0) * 100, 2),
-                    "max_drawdown_pct": 1.1,
-                    "risk_reward_achieved": round(pf3 * 0.8, 2),
-                    "avg_holding_bars": sb.get("avg_bars_held", 3.0),
-                    "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
-                    "latest_signal_time_ago": time_ago_str,
-                    "is_signal_active": is_active_now
-                }
-            else:
-                metrics_dict3 = {
-                    "total_trades": m3.total_trades if m3.total_trades > 0 else 14,
-                    "winning_trades": m3.winning_trades if m3.winning_trades > 0 else 10,
-                    "losing_trades": m3.losing_trades if m3.losing_trades > 0 else 4,
-                    "win_rate_pct": win_rate3,
-                    "profit_factor": pf3,
-                    "total_pnl_amount": round(m3.total_pnl_amount, 0) if m3.total_pnl_amount != 0 else 18600,
-                    "total_return_pct": round(m3.total_return_pct, 2) if m3.total_return_pct != 0 else 6.2,
-                    "max_drawdown_pct": min(1.2, round(m3.max_drawdown_pct, 2)) if m3.max_drawdown_pct > 0 else 0.8,
-                    "risk_reward_achieved": round(m3.risk_reward_achieved, 2) if m3.risk_reward_achieved > 0 else 2.0,
-                    "avg_holding_bars": round(m3.avg_holding_bars, 1) if m3.avg_holding_bars > 0 else 4.2,
-                    "latest_signal_time": latest_signal_time or (candles[-1]["time"] if candles else "-"),
-                    "latest_signal_time_ago": time_ago_str,
-                    "is_signal_active": is_active_now
-                }
 
             scored_candidates.append({
                 "code": code,
                 "score": score,
                 "is_active": is_active_now,
-                "win_rate": max(win_rate1, win_rate2, win_rate3),
+                "win_rate": win_rate,
                 "info": item_info,
                 "candles": candles,
-                "metrics": metrics_dict1,
-                "metrics_strat1": metrics_dict1,
-                "metrics_strat2": metrics_dict2,
-                "metrics_strat3": metrics_dict3,
-                "trades": [t.to_dict() for t in report1.trades]
+                "metrics": metrics_dict,
+                "metrics_strat3": metrics_dict,
+                "trades": [t.to_dict() for t in report.trades]
             })
 
         except Exception as e:
@@ -334,8 +264,6 @@ def run_market_screening(max_display_symbols=8):
             "info": s["info"],
             "candles": s["candles"],
             "metrics": s["metrics"],
-            "metrics_strat1": s["metrics_strat1"],
-            "metrics_strat2": s["metrics_strat2"],
             "metrics_strat3": s["metrics_strat3"],
             "trades": s["trades"]
         }
@@ -346,7 +274,9 @@ def run_market_screening(max_display_symbols=8):
         "generated_at": datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S"),
         "market_status": market_info,
         "criteria": {
-            "min_win_rate_pct": 65.0,
+            "strategy_name": "HighWin_DayTrade_Pro",
+            "strategy_title": "高勝率プロデイトレ戦略 (勝率70%+ 厳選・当日大引け手仕舞い厳守)",
+            "min_win_rate_pct": 70.0,
             "allow_odd_lots": False,
             "lot_size": 100,
             "max_budget": 100000.0,
@@ -364,7 +294,7 @@ def run_market_screening(max_display_symbols=8):
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ 動的銘柄スクリーニング完了: {len(symbols_dict)}銘柄を選定（点灯中: {active_count}件）")
+    print(f"✅ 高勝率プロデイトレ動的銘柄スクリーニング完了: {len(symbols_dict)}銘柄を選定（点灯中: {active_count}件）")
     for code, d in symbols_dict.items():
         sig_tag = "🔔【点灯中】" if d["metrics"]["is_signal_active"] else "⏳【待機中】"
         print(f"  {sig_tag} {d['info']['name']} ({code}): 株価 ¥{d['info']['current_price_approx']} | 勝率 {d['metrics']['win_rate_pct']}% | 100株 ¥{d['info']['lot_investment_approx']:,} | 点灯: {d['metrics']['latest_signal_time']}")

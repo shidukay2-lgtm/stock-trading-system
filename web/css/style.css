@@ -471,6 +471,65 @@ tr:hover td {
     background: rgba(255, 255, 255, 0.02);
 }
 
+/* 銘柄クリックリンク (チャート＆銘柄情報へスクロール連動) */
+.symbol-link {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.symbol-link:hover {
+    background: rgba(0, 229, 255, 0.15);
+    color: var(--primary);
+    transform: translateX(2px);
+}
+
+.symbol-link b {
+    color: var(--primary);
+    transition: color 0.2s ease;
+}
+
+.symbol-link:hover b {
+    color: #fff;
+    text-shadow: 0 0 8px var(--primary-glow);
+}
+
+.symbol-link-icon {
+    font-size: 11px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.symbol-link:hover .symbol-link-icon {
+    opacity: 1;
+    transform: scale(1.15);
+}
+
+/* チャートフォーカス時のハイライトフラッシュ */
+@keyframes focusChartGlow {
+    0% {
+        box-shadow: 0 0 0 rgba(0, 229, 255, 0);
+        border-color: var(--border-color);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+        border-color: var(--primary);
+    }
+    100% {
+        box-shadow: var(--shadow-card);
+        border-color: var(--border-color);
+    }
+}
+
+.card-focus-highlight {
+    animation: focusChartGlow 1.4s ease-out;
+}
+
 /* ページネーションボタンスタイル */
 .page-btn {
     padding: 5px 10px;

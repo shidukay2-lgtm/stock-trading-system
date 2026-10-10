@@ -365,31 +365,12 @@ class NotificationManager {
         // 常にリアルタイムの日本標準時 (JST) で通知日時を発行
         const realtimeSignalTime = getJst(true);
 
-        // 戦略情報の設定
-        const isScalp = strategyMeta && (strategyMeta.id === "mtf_scalping" || (strategyMeta.name && strategyMeta.name.includes("Scalping")));
-        const isVWAP = strategyMeta && (strategyMeta.id === "orderbook_vwap" || (strategyMeta.name && strategyMeta.name.includes("OrderBook")));
-        
-        let stratDisplayName = "HighWin_TripleConfluence (スイング戦略)";
-        let tpPctStr = "+6.0%";
-        let slPctStr = "-2.5%";
-        let rrRatioStr = "2.40 : 1";
-        let holdingPeriodStr = "最大3営業日 (15バー)";
-
-        if (isScalp) {
-            stratDisplayName = strategyMeta.displayName || "【戦略3】プロ仕様 高速スキャルピング・利益ロック＆勝ち逃げデイトレ";
-            tpPctStr = "+1.5% (利益ロック+0.7%・動的トレーリング)";
-            slPctStr = "-1.2%";
-            rrRatioStr = "1.25 : 1";
-            holdingPeriodStr = "最大6バー (当日大引け手仕舞い・持ち越しゼロ)";
-        } else if (isVWAP) {
-            stratDisplayName = strategyMeta.displayName || "【戦略2】板気配VWAP反発押し目";
-            tpPctStr = "+6.0%";
-            slPctStr = "-2.5%";
-            rrRatioStr = "2.40 : 1";
-            holdingPeriodStr = "最大3営業日 (15バー)";
-        } else if (strategyMeta && strategyMeta.displayName) {
-            stratDisplayName = strategyMeta.displayName;
-        }
+        // 戦略情報の設定 (新高勝率プロデイトレ専用)
+        const stratDisplayName = (strategyMeta && strategyMeta.displayName) ? strategyMeta.displayName : "【高勝率プロデイトレ】VWAP反発・直近高値ブレイク順張り";
+        const tpPctStr = "+1.8% (動的トレーリング利食い+1.0%〜)";
+        const slPctStr = "-1.0% (同値プロフィットロック+0.8%連動)";
+        const rrRatioStr = "1.80 : 1";
+        const holdingPeriodStr = "当日大引け手仕舞い (デイトレ厳守・日跨ぎ持ち越しゼロ)";
 
         const title = `⚡ 【約定エントリー】${info.name} (${info.code}) [${realtimeSignalTime}]`;
         const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
