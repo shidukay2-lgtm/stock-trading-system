@@ -64,7 +64,7 @@ class DataStore {
             const raw = localStorage.getItem(this.STORAGE_KEY_STRATEGY_TOGGLES);
             if (raw) return JSON.parse(raw);
         } catch (e) {}
-        return { triple_confluence: true, orderbook_vwap: true, mtf_scalping: true };
+        return { daytrade_pro: true };
     }
 
     saveStrategyToggles(toggles) {

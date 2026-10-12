@@ -11,7 +11,7 @@ class TradingChart {
         this.containerId = containerId;
     }
 
-    render(analyzedCandles, symbolInfo, activePosition = null, strategyId = "triple_confluence", interval = "60m") {
+    render(analyzedCandles, symbolInfo, activePosition = null, strategyId = "daytrade_pro", interval = "60m") {
         if (!analyzedCandles || analyzedCandles.length === 0) return;
 
         const times = analyzedCandles.map(c => c.time);
@@ -133,104 +133,15 @@ class TradingChart {
                     yaxis: "y2"
                 }
             );
-        } else if (isStrategy2) {
-            // 戦略2: VWAP + EMA20 + EMA50 + 板気配インバランス
-            const vwap = analyzedCandles.map(c => c.vwap !== undefined ? c.vwap : c.close);
-            const ema20 = analyzedCandles.map(c => c.ema20 !== undefined ? c.ema20 : c.close);
-            const ema50 = analyzedCandles.map(c => c.ema50 !== undefined ? c.ema50 : c.close);
-            const bidAskRatio = analyzedCandles.map(c => c.bidAskRatio !== undefined ? c.bidAskRatio : (c.bid_ask_imbalance || 1.0));
-
-            traces.push(
-                {
-                    type: "scatter",
-                    mode: "lines",
-                    x: times,
-                    y: vwap,
-                    name: "VWAP (出来高加重平均)",
-                    line: { color: "#ffd740", width: 2.2, dash: "solid" },
-                    xaxis: "x",
-                    yaxis: "y"
-                },
-                {
-                    type: "scatter",
-                    mode: "lines",
-                    x: times,
-                    y: ema20,
-                    name: "EMA 20",
-                    line: { color: "#00e5ff", width: 1.6 },
-                    xaxis: "x",
-                    yaxis: "y"
-                },
-                {
-                    type: "scatter",
-                    mode: "lines",
-                    x: times,
-                    y: ema50,
-                    name: "EMA 50",
-                    line: { color: "#b388ff", width: 1.6 },
-                    xaxis: "x",
-                    yaxis: "y"
-                },
-                {
-                    type: "bar",
-                    x: times,
-                    y: bidAskRatio,
-                    name: "板気配比率 (Bid/Ask)",
-                    marker: {
-                        color: bidAskRatio.map(r => (r >= 1.25 ? "#00e676" : "#4a5568"))
-                    },
-                    xaxis: "x",
-                    yaxis: "y2"
-                }
-            );
-        } else {
-            // 戦略1: EMA10 + EMA25 + MACD
-            const ema10 = analyzedCandles.map(c => c.ema10);
-            const ema25 = analyzedCandles.map(c => c.ema25);
-            const macdHist = analyzedCandles.map(c => c.macdHist || 0);
-
-            traces.push(
-                {
-                    type: "scatter",
-                    mode: "lines",
-                    x: times,
-                    y: ema10,
-                    name: "EMA 10 (短期)",
-                    line: { color: "#00e5ff", width: 1.8 },
-                    xaxis: "x",
-                    yaxis: "y"
-                },
-                {
-                    type: "scatter",
-                    mode: "lines",
-                    x: times,
-                    y: ema25,
-                    name: "EMA 25 (長期)",
-                    line: { color: "#b388ff", width: 1.8 },
-                    xaxis: "x",
-                    yaxis: "y"
-                },
-                {
-                    type: "bar",
-                    x: times,
-                    y: macdHist,
-                    name: "MACD Hist",
-                    marker: {
-                        color: macdHist.map(h => (h >= 0 ? "#00e676" : "#ff5252"))
-                    },
-                    xaxis: "x",
-                    yaxis: "y2"
-                }
-            );
         }
 
         // 買いシグナルマーカー (▲)
         if (buyTimes.length > 0) {
-            const tpPctDefault = 1.018;
+            const tpPctDefault = 1.012;
             const slPctDefault = 0.990;
-            const tpStr = "+1.8%";
+            const tpStr = "+1.2%";
             const slStr = "-1.0%";
-            const holdRuleStr = "利確+1.8%・損切-1.0%・動的トレーリング利食い・当日大引け手仕舞い厳守";
+            const holdRuleStr = "利確+1.2%・損切-1.0%・動的トレーリング利食い・前場集中・当日大引け手仕舞い厳守";
 
             traces.push({
                 type: "scatter",
@@ -263,29 +174,17 @@ class TradingChart {
         });
 
         // サブプロットラベル設定
-        const y2Title = isStrategy3 ? "板気配比率 (高速)" : (isStrategy2 ? "板気配比率" : "MACD");
+        const y2Title = "板気配比率 (Bid/Ask)";
 
         // シェイプとアノテーションの構築
         const shapes = [
             // RSI 水平基準ライン
             { type: "line", x0: times[0], x1: lastTime, y0: 70, y1: 70, yref: "y3", line: { color: "rgba(255, 82, 82, 0.4)", dash: "dot", width: 1 } },
-            { type: "line", x0: times[0], x1: lastTime, y0: isStrategy3 ? 55 : (isStrategy2 ? 50 : 48), y1: isStrategy3 ? 55 : (isStrategy2 ? 50 : 48), yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
-            { type: "line", x0: times[0], x1: lastTime, y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } }
+            { type: "line", x0: times[0], x1: lastTime, y0: 50, y1: 50, yref: "y3", line: { color: "rgba(0, 229, 255, 0.6)", dash: "dash", width: 1 } },
+            { type: "line", x0: times[0], x1: lastTime, y0: 30, y1: 30, yref: "y3", line: { color: "rgba(0, 230, 118, 0.4)", dash: "dot", width: 1 } },
+            // 板気配比率 1.20 基準ライン
+            { type: "line", x0: times[0], x1: lastTime, y0: 1.20, y1: 1.20, yref: "y2", line: { color: "#ffd740", dash: "dash", width: 1.2 } }
         ];
-
-        if (isStrategy3) {
-            // 板気配比率 1.30 基準ライン
-            shapes.push({
-                type: "line", x0: times[0], x1: lastTime, y0: 1.30, y1: 1.30, yref: "y2",
-                line: { color: "#ffd740", dash: "dash", width: 1.2 }
-            });
-        } else if (isStrategy2) {
-            // 板気配比率 1.25 基準ライン
-            shapes.push({
-                type: "line", x0: times[0], x1: lastTime, y0: 1.25, y1: 1.25, yref: "y2",
-                line: { color: "rgba(0, 230, 118, 0.7)", dash: "dash", width: 1.2 }
-            });
-        }
 
         const annotations = [];
 
@@ -305,11 +204,11 @@ class TradingChart {
             // ポジション保有中: 決済タイミング完全可視化
             // ==========================================
             const entryP = Number(activePosition.entryPrice) || currentPrice;
-            const tpP = Number(activePosition.takeProfitPrice) || (entryP * (isStrategy3 ? 1.012 : 1.06));
-            const slP = Number(activePosition.stopLossPrice) || (entryP * (isStrategy3 ? 0.994 : 0.975));
+            const tpP = Number(activePosition.takeProfitPrice) || (entryP * 1.012);
+            const slP = Number(activePosition.stopLossPrice) || (entryP * 0.990);
             const posShares = Number(activePosition.shares) || 100;
             const holdingBars = activePosition.holdingBars || 1;
-            const maxBars = isStrategy3 ? 10 : 15;
+            const maxBars = 4;
             const pnl = (currentPrice - entryP) * posShares;
             const pnlPct = entryP > 0 ? ((currentPrice - entryP) / entryP) * 100 : 0;
             const pnlColor = pnl >= 0 ? "#00e676" : "#ff5252";
@@ -367,8 +266,8 @@ class TradingChart {
                 line: { color: "#ff5252", dash: "dash", width: 2.2 }
             });
 
-            const tpPctStr = isStrategy3 ? "+2.5%" : "+6.0%";
-            const slPctStr = isStrategy3 ? "-1.6%" : "-2.5%";
+            const tpPctStr = "+1.2%";
+            const slPctStr = "-1.0%";
 
             // 右端アノテーションラベル（価格・決済条件・残り距離）
             annotations.push({
@@ -467,8 +366,8 @@ class TradingChart {
             // ==========================================
             // 未保有時: 現在レート & 想定決済ライン表示
             // ==========================================
-            const simTpPct = isStrategy3 ? 0.025 : 0.060;
-            const simSlPct = isStrategy3 ? 0.016 : 0.025;
+            const simTpPct = 0.012;
+            const simSlPct = 0.010;
             const simTp = currentPrice * (1 + simTpPct);
             const simSl = currentPrice * (1 - simSlPct);
 
@@ -529,8 +428,8 @@ class TradingChart {
             if (tpP && tpP > yMax) yMax = tpP;
             if (slP && slP < yMin) yMin = slP;
         } else {
-            const simTp = currentPrice * (1 + (isStrategy3 ? 0.025 : 0.060));
-            const simSl = currentPrice * (1 - (isStrategy3 ? 0.016 : 0.025));
+            const simTp = currentPrice * 1.012;
+            const simSl = currentPrice * 0.990;
             if (simTp > yMax) yMax = simTp;
             if (simSl < yMin) yMin = simSl;
         }
@@ -541,38 +440,16 @@ class TradingChart {
         // 外部凡例バーの動的更新（チャート内の邪魔な被りを完全解消）
         const legendContainer = document.getElementById("legend-items");
         if (legendContainer) {
-            let legendHtml = `
+            legendContainer.innerHTML = `
                 <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:10px; height:10px; background:#00e676; border-radius:2px;"></span><span style="color:var(--text-muted); font-weight:600;">株価 OHLC</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">VWAP</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e676; border-radius:2px;"></span><span style="color:#00e676; font-weight:600;">EMA 5</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:1.8px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 20</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#4a5568; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配比率</span></span>
+                <span style="display:flex; align-items:center; gap:3px;"><span style="color:#00e676; font-size:12px;">▲</span><span style="color:#00e676; font-weight:700;">BUYシグナル</span></span>
+                <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(9)</span></span>
             `;
-            if (isStrategy3) {
-                legendHtml += `
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">短期VWAP</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e676; border-radius:2px;"></span><span style="color:#00e676; font-weight:600;">EMA 5</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:1.8px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#4a5568; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配比率</span></span>
-                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#ffd740; font-size:12px;">▲</span><span style="color:#ffd740; font-weight:700;">BUYシグナル</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(9)</span></span>
-                `;
-            } else if (isStrategy2) {
-                legendHtml += `
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:3px; background:#ffd740; border-radius:2px;"></span><span style="color:#ffd740; font-weight:700;">VWAP</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 20</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 50</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#00e676; border-radius:1px;"></span><span style="color:var(--text-muted);">板気配</span></span>
-                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#00e676; font-size:12px;">▲</span><span style="color:#00e676; font-weight:700;">BUYシグナル</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(14)</span></span>
-                `;
-            } else {
-                legendHtml += `
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2.5px; background:#00e5ff; border-radius:2px;"></span><span style="color:#00e5ff; font-weight:600;">EMA 10</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:14px; height:2px; background:#b388ff; border-radius:2px;"></span><span style="color:#b388ff;">EMA 25</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:8px; height:8px; background:#00e676; border-radius:1px;"></span><span style="color:var(--text-muted);">MACD Hist</span></span>
-                    <span style="display:flex; align-items:center; gap:3px;"><span style="color:#00e676; font-size:12px;">▲</span><span style="color:#00e676; font-weight:700;">BUYシグナル</span></span>
-                    <span style="display:flex; align-items:center; gap:4px;"><span style="display:inline-block; width:12px; height:2px; background:#ffd740;"></span><span style="color:#ffd740;">RSI(14)</span></span>
-                `;
-            }
-            legendContainer.innerHTML = legendHtml;
         }
 
         const layout = {

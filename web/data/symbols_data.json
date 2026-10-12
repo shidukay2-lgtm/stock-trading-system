@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-10-11 00:30:43",
+  "generated_at": "2026-10-13 07:49:01",
   "market_status": {
     "is_open": false,
-    "is_weekday": false,
+    "is_weekday": true,
     "status_text": "⚪ 取引時間外 (閉場中・新規エントリー停止)",
     "status_desc": "時間外のため新規取引停止中 (次の開場: 平日 09:00 前場開始)",
-    "current_time": "2026-10-11 00:30:25"
+    "current_time": "2026-10-13 07:48:42"
   },
   "criteria": {
     "strategy_name": "HighWin_DayTrade_Pro",
@@ -15071,7 +15071,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-FA0AA343",
+          "trade_id": "T-A8D3F1AD",
           "symbol": "4477.T",
           "symbol_name": "BASE",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -30146,7 +30146,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-0CFF84A6",
+          "trade_id": "T-A7A7F81A",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -30167,7 +30167,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-1AB73305",
+          "trade_id": "T-991F4C74",
           "symbol": "2158.T",
           "symbol_name": "FRONTEO",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -45242,7 +45242,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-D23788CC",
+          "trade_id": "T-071D3504",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -45263,7 +45263,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-261D2FC7",
+          "trade_id": "T-4E21A09A",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -45284,7 +45284,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-1E21E646",
+          "trade_id": "T-3156BD9D",
           "symbol": "7383.T",
           "symbol_name": "ネットプロHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -60359,7 +60359,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-07F0F5BC",
+          "trade_id": "T-18B27544",
           "symbol": "4482.T",
           "symbol_name": "ユナイト＆グロウ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -60380,7 +60380,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-26842411",
+          "trade_id": "T-FB93EFB5",
           "symbol": "4482.T",
           "symbol_name": "ユナイト＆グロウ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -60401,7 +60401,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-1ABF5102",
+          "trade_id": "T-C308828E",
           "symbol": "4482.T",
           "symbol_name": "ユナイト＆グロウ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -60422,7 +60422,7 @@
           "tags": "#HighWin_DayTrade_Pro #TIMEOUT"
         },
         {
-          "trade_id": "T-AD22EF1E",
+          "trade_id": "T-A450672E",
           "symbol": "4482.T",
           "symbol_name": "ユナイト＆グロウ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -75497,7 +75497,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-A0543463",
+          "trade_id": "T-7AD4F8F3",
           "symbol": "7354.T",
           "symbol_name": "DmMiX",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -75518,7 +75518,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-F77A9D53",
+          "trade_id": "T-FFCC85C0",
           "symbol": "7354.T",
           "symbol_name": "DmMiX",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -90593,7 +90593,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-01D0C27A",
+          "trade_id": "T-F5AB960D",
           "symbol": "5240.T",
           "symbol_name": "monoAI",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -90614,7 +90614,7 @@
           "tags": "#HighWin_DayTrade_Pro #TIMEOUT"
         },
         {
-          "trade_id": "T-26F3A650",
+          "trade_id": "T-8E6AF83B",
           "symbol": "5240.T",
           "symbol_name": "monoAI",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -90635,7 +90635,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-F56E18EC",
+          "trade_id": "T-F3241FC6",
           "symbol": "5240.T",
           "symbol_name": "monoAI",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -90656,7 +90656,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-188C6816",
+          "trade_id": "T-73CDA66F",
           "symbol": "5240.T",
           "symbol_name": "monoAI",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -105731,7 +105731,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-2A6B7BCF",
+          "trade_id": "T-A68FCA97",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -105752,7 +105752,7 @@
           "tags": "#HighWin_DayTrade_Pro #TIMEOUT"
         },
         {
-          "trade_id": "T-9AAC5943",
+          "trade_id": "T-8FA9D973",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -105773,7 +105773,7 @@
           "tags": "#HighWin_DayTrade_Pro #TIMEOUT"
         },
         {
-          "trade_id": "T-4B279184",
+          "trade_id": "T-83216079",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -105794,7 +105794,7 @@
           "tags": "#HighWin_DayTrade_Pro #TIMEOUT"
         },
         {
-          "trade_id": "T-397F98F5",
+          "trade_id": "T-A887A8B6",
           "symbol": "7085.T",
           "symbol_name": "カーブスHD",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -120869,7 +120869,7 @@
       },
       "trades": [
         {
-          "trade_id": "T-5E4FBC7F",
+          "trade_id": "T-1E320AB6",
           "symbol": "3936.T",
           "symbol_name": "グローバルウェイ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -120890,7 +120890,7 @@
           "tags": "#HighWin_DayTrade_Pro #STOP_LOSS"
         },
         {
-          "trade_id": "T-CDE9DEF1",
+          "trade_id": "T-5E2270DE",
           "symbol": "3936.T",
           "symbol_name": "グローバルウェイ",
           "strategy_name": "HighWin_DayTrade_Pro",
@@ -120911,7 +120911,7 @@
           "tags": "#HighWin_DayTrade_Pro #TAKE_PROFIT"
         },
         {
-          "trade_id": "T-9050B26B",
+          "trade_id": "T-4B6F5C9F",
           "symbol": "3936.T",
           "symbol_name": "グローバルウェイ",
           "strategy_name": "HighWin_DayTrade_Pro",

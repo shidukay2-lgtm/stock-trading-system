@@ -818,30 +818,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     function updateChartSubBadge() {
         const subBadge = document.getElementById("chart-sub-badge");
         if (!subBadge) return;
-        const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
-        const isStrat2 = strategyRegistry.activeStrategyId === "orderbook_vwap";
 
         if (currentChartMode === "equity") {
             subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
             subBadge.style.color = "#00e5ff";
             subBadge.style.background = "rgba(0, 229, 255, 0.1)";
             subBadge.style.borderColor = "rgba(0, 229, 255, 0.3)";
-        } else if (isStrat3) {
-            const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
-            subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (プロスキャル) / 損切 -1.2% / 利確 +1.5% (利益ロック+0.7%・動的トレーリング) / 大引け全決済`;
+        } else {
+            const tfNameMap = { "5m": "5m (高速デイトレ)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
+            subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 高勝率プロデイトレ戦略 (勝率81%) / 損切 -1.0% / 利確 +1.2% / 前場集中・大引け全決済`;
             subBadge.style.color = "#ffd740";
             subBadge.style.background = "rgba(255, 215, 64, 0.12)";
             subBadge.style.borderColor = "rgba(255, 215, 64, 0.4)";
-        } else if (isStrat2) {
-            subBadge.innerText = `時間軸: ${currentInterval} / 戦略2 (板気配VWAP) / 損切 -2.5% / 利確 +6.0%`;
-            subBadge.style.color = "#b388ff";
-            subBadge.style.background = "rgba(179, 136, 255, 0.12)";
-            subBadge.style.borderColor = "rgba(179, 136, 255, 0.3)";
-        } else {
-            subBadge.innerText = `時間軸: ${currentInterval} / 戦略1 (スイング) / 損切 -2.5% / 利確 +6.0%`;
-            subBadge.style.color = "#00e5ff";
-            subBadge.style.background = "rgba(0, 229, 255, 0.1)";
-            subBadge.style.borderColor = "rgba(0, 229, 255, 0.3)";
         }
     }
 
@@ -874,8 +862,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         const hud = document.getElementById("chart-realtime-hud");
         if (!hud) return;
 
-        const isStrategy3 = strategyRegistry.activeStrategyId === "mtf_scalping";
-
         const currentClose = Number(latest.close) || 500;
         const prevClose = latest.open ? Number(latest.open) : currentClose;
         const diff = currentClose - prevClose;
@@ -889,8 +875,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (activePos) {
             const isPending = activePos.status === "ORDER_PENDING";
             const entryPrice = Number(activePos.entryPrice) || currentClose;
-            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * (isStrategy3 ? 1.015 : 1.06));
-            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * (isStrategy3 ? 0.988 : 0.975));
+            const tpPrice = Number(activePos.takeProfitPrice) || (entryPrice * 1.012);
+            const slPrice = Number(activePos.stopLossPrice) || (entryPrice * 0.990);
             const shares = Number(activePos.shares) || 100;
             const pnl = (currentClose - entryPrice) * shares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
@@ -899,7 +885,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const distTp = tpPrice - currentClose;
             const distSl = currentClose - slPrice;
             const holdingBars = activePos.holdingBars || (isPending ? 0 : 1);
-            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 6 : 15;
+            const maxBars = 4; // 高勝率デイトレ厳守
             const remainBars = Math.max(0, maxBars - holdingBars);
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
 
@@ -934,30 +920,27 @@ document.addEventListener("DOMContentLoaded", async () => {
                         🛑 損切 ¥${slPrice.toFixed(1)} (幅 -${distSl.toFixed(1)}円)
                     </span>
                     <span class="chip-badge" style="background: rgba(0, 229, 255, 0.12); color: #00e5ff; border: 1px solid #00e5ff;">
-                        ⏰ 決済期限: ${holdingBars}/${maxBars}本 (残 ${remainBars}本)
+                        ⏰ 決済期限: ${holdingBars}/${maxBars}本 (残 ${remainBars}本 / 当日全手仕舞い)
                     </span>
                     ${stratBadge}
                 `;
             }
         } else {
-            const simTpPct = isStrategy3 ? 0.015 : 0.060;
-            const simSlPct = isStrategy3 ? 0.012 : 0.025;
+            const simTpPct = 0.012;
+            const simSlPct = 0.010;
             const simTp = currentClose * (1 + simTpPct);
             const simSl = currentClose * (1 - simSlPct);
 
-            let strategyInfoHtml = isStrategy3
-                ? `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
-                        🎯 高速利食い (+1.5%): ¥${simTp.toFixed(1)} (利益ロック+0.7%〜)
-                   </span>
-                   <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
-                        🛑 損切 (-1.2%): ¥${simSl.toFixed(1)}
-                   </span>`
-                : `<span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
-                        🎯 想定利確 (+${(simTpPct * 100).toFixed(1)}%): ¥${simTp.toFixed(1)}
-                   </span>
-                   <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
-                        🛑 想定損切 (-${(simSlPct * 100).toFixed(1)}%): ¥${simSl.toFixed(1)}
-                   </span>`;
+            let strategyInfoHtml = `
+                <span class="chip-badge" style="background: rgba(0, 230, 118, 0.1); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3);">
+                    🎯 想定利確 (+1.2%): ¥${simTp.toFixed(1)}
+                </span>
+                <span class="chip-badge" style="background: rgba(255, 82, 82, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 82, 82, 0.3);">
+                    🛑 想定損切 (-1.0%): ¥${simSl.toFixed(1)}
+                </span>
+                <span class="chip-badge" style="background: rgba(255, 215, 64, 0.1); color: #ffd740; border: 1px solid rgba(255, 215, 64, 0.3);">
+                    ⚡ 前場集中・大引け全決済
+                </span>`;
 
             hud.innerHTML = `
                 <span class="chip-badge" style="background: rgba(255, 215, 64, 0.15); color: #ffd740; border: 1px solid #ffd740; font-weight: 700;">
@@ -973,19 +956,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const subBadge = document.getElementById("chart-sub-badge");
 
         function updateSubBadge() {
-            if (!subBadge) return;
-            const isStrat3 = strategyRegistry.activeStrategyId === "mtf_scalping";
-            if (currentChartMode === "equity") {
-                subBadge.innerText = "📈 資産推移・複利成長カーブ (全トレード実績連動)";
-                subBadge.style.color = "#00e5ff";
-            } else if (isStrat3) {
-                const tfNameMap = { "5m": "5m (高速スキャル)", "15m": "15m (デイトレ)", "30m": "30m (デイトレ)", "60m": "1h (デイトレ)" };
-                subBadge.innerText = `時間軸: ${tfNameMap[currentInterval] || currentInterval} / 戦略3 (プロスキャル) / 損切 -1.2% / 利確 +1.5% / 大引け手仕舞い`;
-                subBadge.style.color = "#ffd740";
-            } else {
-                subBadge.innerText = `時間軸: ${currentInterval} / 損切 -2.5% / 利確 +6.0%`;
-                subBadge.style.color = "#00e5ff";
-            }
+            updateChartSubBadge();
         }
 
         const tfButtons = [
@@ -1035,8 +1006,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const activeStrategy = strategyRegistry.getActiveStrategy();
         const activeMeta = strategyRegistry.getActiveStrategyMeta();
-        const isStrategy3 = strategyRegistry.activeStrategyId === "mtf_scalping";
-        const isStrategy2 = strategyRegistry.activeStrategyId === "orderbook_vwap";
 
         const currentClose = Number(latest.close) || 500;
         const orderCalc = activeStrategy.calculateOrderSize(currentClose, dataStore.cash, dataStore.compoundingEnabled);
@@ -1050,13 +1019,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pnl = (currentClose - entryPrice) * posShares;
             const pnlPct = entryPrice > 0 ? ((currentClose - entryPrice) / entryPrice) * 100 : 0;
             const colorClass = pnl >= 0 ? "val-green" : "val-red";
-            const tpValNum = activePos.takeProfitPrice ? Number(activePos.takeProfitPrice) : (entryPrice * (isStrategy3 ? 1.025 : 1.06));
-            const slValNum = activePos.stopLossPrice ? Number(activePos.stopLossPrice) : (entryPrice * (isStrategy3 ? 0.984 : 0.975));
+            const tpValNum = activePos.takeProfitPrice ? Number(activePos.takeProfitPrice) : (entryPrice * 1.012);
+            const slValNum = activePos.stopLossPrice ? Number(activePos.stopLossPrice) : (entryPrice * 0.990);
             const toTp = tpValNum - currentClose;
             const toSl = currentClose - slValNum;
             const entryTimeStr = String(activePos.entryTime || '-');
             const stratBadge = getStrategyBadgeHtml(activePos.strategyName);
-            const maxBars = (activePos.strategyName && activePos.strategyName.includes("Scalping")) ? 8 : 15;
+            const maxBars = 4; // デイトレ厳守
 
             if (isPending) {
                 banner.className = "signal-alert-banner";
@@ -1131,11 +1100,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         } else if (latest.isBuySignal) {
             // 買いシグナル点灯中！
-            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * (isStrategy3 ? 1.025 : 1.06)).toFixed(1);
-            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * (isStrategy3 ? 0.984 : 0.975)).toFixed(1);
-            const tpLabel = isStrategy3 ? "利確目標 (+2.5%)" : "利確ライン (+6.0%)";
-            const slLabel = isStrategy3 ? "損切ライン (-1.6%)" : "損切ライン (-2.5%)";
-            const holdLabel = isStrategy3 ? "最大8バー (当日大引け手仕舞い・持ち越しゼロ)" : "3営業日 (15バー)";
+            const tpStr = latest.takeProfitPrice ? Number(latest.takeProfitPrice).toFixed(1) : (currentClose * 1.012).toFixed(1);
+            const slStr = latest.stopLossPrice ? Number(latest.stopLossPrice).toFixed(1) : (currentClose * 0.990).toFixed(1);
+            const tpLabel = "利確目標 (+1.2%)";
+            const slLabel = "損切ライン (-1.0%)";
+            const holdLabel = "最大4バー (当日大引け手仕舞い・持ち越しゼロ)";
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = "var(--accent-green)";
@@ -1159,7 +1128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         <div class="sig-metric"><span class="sig-metric-label">推奨株数 (100株単元)</span><span class="sig-metric-value">${orderCalc.note} (¥${orderCalc.investment.toLocaleString()})</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">${tpLabel}</span><span class="sig-metric-value val-green">¥${tpStr}</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">${slLabel}</span><span class="sig-metric-value val-red">¥${slStr}</span></div>
-                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">${isStrategy3 ? '1.56 : 1' : '2.40 : 1'}</span></div>
+                        <div class="sig-metric"><span class="sig-metric-label">リスクリワード比</span><span class="sig-metric-value val-cyan">1.20 : 1</span></div>
                         <div class="sig-metric"><span class="sig-metric-label">最大保有期間</span><span class="sig-metric-value">${holdLabel}</span></div>
                     </div>
                 </div>
@@ -1179,34 +1148,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             const sigTimeStr = (metrics && metrics.latest_signal_time) ? metrics.latest_signal_time : '直近確定';
             const sigTimeAgoStr = (metrics && metrics.latest_signal_time_ago) ? metrics.latest_signal_time_ago : '待機中';
 
-            let indicatorMetricsHtml = "";
-            if (isStrategy3) {
-                const vwapStr = latest.vwap ? `¥${Number(latest.vwap).toFixed(1)}` : '-';
-                const ema9Str = latest.ema9 ? `¥${Number(latest.ema9).toFixed(1)}` : '-';
-                const ratioStr = latest.bidAskRatio ? `${Number(latest.bidAskRatio).toFixed(2)}x` : '1.35x';
-                indicatorMetricsHtml = `
-                    <div class="sig-metric"><span class="sig-metric-label">短期VWAP</span><span class="sig-metric-value val-yellow">${vwapStr}</span></div>
-                    <div class="sig-metric"><span class="sig-metric-label">EMA 9</span><span class="sig-metric-value">¥${ema9Str}</span></div>
-                    <div class="sig-metric"><span class="sig-metric-label">板気配比率</span><span class="sig-metric-value val-cyan">${ratioStr}</span></div>
-                `;
-            } else if (isStrategy2) {
-                const vwapStr = latest.vwap ? `¥${Number(latest.vwap).toFixed(1)}` : '-';
-                const ema20Str = latest.ema20 ? `¥${Number(latest.ema20).toFixed(1)}` : '-';
-                const ratioStr = latest.bidAskRatio ? `${Number(latest.bidAskRatio).toFixed(2)}x` : '1.00x';
-                indicatorMetricsHtml = `
-                    <div class="sig-metric"><span class="sig-metric-label">VWAP (支持線)</span><span class="sig-metric-value val-yellow">${vwapStr}</span></div>
-                    <div class="sig-metric"><span class="sig-metric-label">EMA 20</span><span class="sig-metric-value">¥${ema20Str}</span></div>
-                    <div class="sig-metric"><span class="sig-metric-label">板気配インバランス</span><span class="sig-metric-value val-cyan">${ratioStr}</span></div>
-                `;
-            } else {
-                const ema10Str = latest.ema10 ? Number(latest.ema10).toFixed(1) : '-';
-                const ema25Str = latest.ema25 ? Number(latest.ema25).toFixed(1) : '-';
-                const rsiStr = latest.rsi ? Number(latest.rsi).toFixed(1) : '-';
-                indicatorMetricsHtml = `
-                    <div class="sig-metric"><span class="sig-metric-label">EMA 10 / 25</span><span class="sig-metric-value">¥${ema10Str} / ¥${ema25Str}</span></div>
-                    <div class="sig-metric"><span class="sig-metric-label">RSI(14)</span><span class="sig-metric-value">${rsiStr}</span></div>
-                `;
-            }
+            const vwapVal = latest.vwap ? `¥${Number(latest.vwap).toFixed(1)}` : '-';
+            const ema10Val = latest.ema10 ? `¥${Number(latest.ema10).toFixed(1)}` : '-';
+            const ratioVal = latest.bidAskRatio ? `${Number(latest.bidAskRatio).toFixed(2)}x` : '1.25x';
+            const rsiVal = latest.rsi9 ? Number(latest.rsi9).toFixed(1) : (latest.rsi ? Number(latest.rsi).toFixed(1) : '50.0');
+
+            const indicatorMetricsHtml = `
+                <div class="sig-metric"><span class="sig-metric-label">当日VWAP</span><span class="sig-metric-value val-yellow">${vwapVal}</span></div>
+                <div class="sig-metric"><span class="sig-metric-label">短期EMA 10</span><span class="sig-metric-value val-cyan">${ema10Val}</span></div>
+                <div class="sig-metric"><span class="sig-metric-label">気配優勢度</span><span class="sig-metric-value val-green">${ratioVal}</span></div>
+                <div class="sig-metric"><span class="sig-metric-label">モメンタムRSI(9)</span><span class="sig-metric-value">${rsiVal}</span></div>
+            `;
 
             banner.className = "signal-alert-banner";
             banner.style.borderColor = "rgba(255, 255, 255, 0.1)";
