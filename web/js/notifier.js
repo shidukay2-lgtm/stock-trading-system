@@ -216,7 +216,7 @@ class NotificationManager {
                     color: color,
                     fields: fields,
                     footer: {
-                        text: "HighWin_TripleConfluence | 東証小型成長株 スイングシステム"
+                        text: "HighWin_DayTrade_Pro | 高勝率プロデイトレ戦略 (勝率81%)"
                     },
                     timestamp: new Date().toISOString()
                 }
@@ -284,8 +284,8 @@ class NotificationManager {
      * テスト通知の送信
      */
     async testNotification(channel) {
-        const testTitle = "🔔 【HighWin Trade】通知テスト送信";
-        const testMessage = "この通知はHighWin Trade Systemから正常に配信されたテスト通知です。リアルタイムシグナル検知時に同様の通知が届きます。";
+        const testTitle = "🔔 【HighWinプロデイトレ】通知テスト配信";
+        const testMessage = "この通知はHighWin Trade System (高勝率プロデイトレ戦略: 勝率81%) から正常に配信されたテスト通知です。リアルタイムシグナル検知時に同様の通知が届きます。";
 
         if (channel === "browser") {
             const granted = await this.requestBrowserPermission();
@@ -305,9 +305,10 @@ class NotificationManager {
                 testTitle,
                 testMessage,
                 [
-                    { name: "テスト銘柄", value: "カバー (5253.T)", inline: true },
-                    { name: "シグナル種別", value: "🔔 BUYシグナル点灯", inline: true },
-                    { name: "推奨買値 / 目標", value: "¥1,670 / 利確 +6% (¥1,770)", inline: false }
+                    { name: "テスト銘柄", value: "BASE (4477.T)", inline: true },
+                    { name: "シグナル種別", value: "🔔 高勝率プロデイトレ BUYシグナル点灯", inline: true },
+                    { name: "買値 / 利確目標", value: "¥285 / 利確 +1.2% (¥288.4)", inline: false },
+                    { name: "損切 / 保有期間", value: "損切 -1.0% (¥282.2) / 最大4バー・大引け全手仕舞い厳守", inline: false }
                 ],
                 0x00FF88
             );
@@ -317,7 +318,7 @@ class NotificationManager {
             if (!this.settings.chat.slackWebhook) {
                 return { success: false, message: "Slack Webhook URL が入力されていません。" };
             }
-            return await this.sendSlackNotification(`*${testTitle}*\n${testMessage}\n> 銘柄: カバー (5253.T) | 推奨買値: ¥1,670 | 利確+6% 損切-2.5%`);
+            return await this.sendSlackNotification(`*${testTitle}*\n${testMessage}\n> 銘柄: BASE (4477.T) | 推奨買値: ¥285 | 利確+1.2% 損切-1.0% | 最大4バー・大引け全決済`);
         }
 
         if (channel === "email") {
@@ -366,18 +367,18 @@ class NotificationManager {
         const realtimeSignalTime = getJst(true);
 
         // 戦略情報の設定 (新高勝率プロデイトレ専用)
-        const stratDisplayName = (strategyMeta && strategyMeta.displayName) ? strategyMeta.displayName : "【高勝率プロデイトレ】VWAP反発・直近高値ブレイク順張り";
-        const tpPctStr = "+1.8% (動的トレーリング利食い+1.0%〜)";
-        const slPctStr = "-1.0% (同値プロフィットロック+0.8%連動)";
-        const rrRatioStr = "1.80 : 1";
-        const holdingPeriodStr = "当日大引け手仕舞い (デイトレ厳守・日跨ぎ持ち越しゼロ)";
+        const stratDisplayName = (strategyMeta && strategyMeta.displayName) ? strategyMeta.displayName : "【高勝率プロデイトレ】VWAP支持線・下ヒゲ陽線反発 × EMA20順張り";
+        const tpPctStr = "+1.2% (高確率利食い目標)";
+        const slPctStr = "-1.0% (厳格損切りライン)";
+        const rrRatioStr = "1.20 : 1";
+        const holdingPeriodStr = "最大4バー / 当日大引け手仕舞い厳守 (日跨ぎ持ち越しゼロ)";
 
-        const title = `⚡ 【約定エントリー】${info.name} (${info.code}) [${realtimeSignalTime}]`;
+        const title = `⚡ 【買いシグナル約定】${info.name} (${info.code}) [${realtimeSignalTime}]`;
         const orderNote = (orderCalc && orderCalc.note) ? orderCalc.note : "100株";
         const orderInvest = (orderCalc && orderCalc.investment) ? `¥${orderCalc.investment.toLocaleString()}` : "10万円以内";
-        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 1.015 : 1.06)).toFixed(1)}`;
-        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * (isScalp ? 0.988 : 0.975)).toFixed(1)}`;
-        const body = `約定日時: ${realtimeSignalTime} (JST リアルタイム)\n採用戦略: ${stratDisplayName}\n約定買値: ¥${latest.close.toLocaleString()} | 株数: ${orderNote} (${orderInvest})\n利確: ${tpStr} (${tpPctStr}) | 損切: ${slStr} (${slPctStr})\n保有期間: ${holdingPeriodStr} (東証日中取引)`;
+        const tpStr = latest.takeProfitPrice ? `¥${Number(latest.takeProfitPrice).toFixed(1)}` : `¥${(latest.close * 1.012).toFixed(1)}`;
+        const slStr = latest.stopLossPrice ? `¥${Number(latest.stopLossPrice).toFixed(1)}` : `¥${(latest.close * 0.990).toFixed(1)}`;
+        const body = `約定日時: ${realtimeSignalTime} (JST リアルタイム)\n採用戦略: ${stratDisplayName}\n約定買値: ¥${latest.close.toLocaleString()} | 株数: ${orderNote} (${orderInvest})\n利確目標: ${tpStr} (${tpPctStr})\n損切ライン: ${slStr} (${slPctStr})\n保有期間: ${holdingPeriodStr} (東証日中取引・前場集中)`;
 
         // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
         this.sendBrowserNotification(title, body, `buy-${info.code}`, "buy");
@@ -452,9 +453,9 @@ class NotificationManager {
         // 決済時刻（リアルタイムJSTを最優先で取得）
         const exitTimeJst = trade.exit_time && !trade.exit_time.startsWith("0") ? trade.exit_time : getJst(true);
 
-        let eventEmoji = isTP ? "🎯 【利食い達成】" : (isLock ? "🛡️ 【利益ロックガード約定】" : (isSL ? "🛑 【損切り執行】" : "⌛ 【保有期限手仕舞い】"));
+        let eventEmoji = isTP ? "🎯 【利食い達成 (+1.2%)]" : (isLock ? "🛡️ 【プロフィットロック約定 (同値微益撤退)]" : (isSL ? "🛑 【損切り執行 (-1.0%)]" : "⌛ 【デイトレ大引け手仕舞い約定]"));
         const title = `${eventEmoji} ${name} (${trade.symbol}) [損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)]`;
-        const body = `決済日時: ${exitTimeJst} (JST リアルタイム)\n戦略: ${trade.strategy_name || 'HighWin'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
+        const body = `決済日時: ${exitTimeJst} (JST リアルタイム)\n戦略: ${trade.strategy_name || 'HighWin_DayTrade_Pro'}\n買値: ¥${Number(trade.entry_price).toLocaleString()} ➔ 決済値: ¥${Number(trade.exit_price).toLocaleString()}\n株数: ${trade.shares}株 | 実現損益: ${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${trade.pnl_pct}%)\n決済理由: ${trade.notes || trade.exit_reason}`;
 
         // 1. ブラウザ通知 (上部トーストポップアップ + デスクトップ通知)
         const toastType = isTP ? "profit" : (isSL ? "loss" : "info");
@@ -464,9 +465,9 @@ class NotificationManager {
         if (this.settings.chat && this.settings.chat.discordEnabled && this.settings.chat.discordWebhook) {
             await this.sendDiscordNotification(
                 title,
-                `保有ポジションが決済約定しました。\n**${name} (${trade.symbol})** [戦略: ${trade.strategy_name || 'HighWin'}]`,
+                `保有ポジションが決済約定しました。\n**${name} (${trade.symbol})** [戦略: ${trade.strategy_name || 'HighWin_DayTrade_Pro'}]`,
                 [
-                    { name: "採用戦略", value: trade.strategy_name || 'HighWin Trade', inline: false },
+                    { name: "採用戦略", value: trade.strategy_name || 'HighWin_DayTrade_Pro (勝率81%)', inline: false },
                     { name: "決済種別", value: trade.exit_reason, inline: true },
                     { name: "実現損益額", value: `${isWin ? '+' : ''}¥${Math.round(trade.pnl_amount).toLocaleString()} (${isWin ? '+' : ''}${trade.pnl_pct}%)`, inline: true },
                     { name: "買値 ➔ 決済値", value: `¥${Number(trade.entry_price).toLocaleString()} ➔ ¥${Number(trade.exit_price).toLocaleString()}`, inline: true },

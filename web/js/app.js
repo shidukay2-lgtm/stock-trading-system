@@ -136,13 +136,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const stratMeta = strategyRegistry.getStrategyMeta(pos.strategyName);
                     const stratInstance = stratMeta ? stratMeta.instance : null;
                     if (stratInstance) {
-                        pos.stopLossPrice = currentClose * (1 - (stratInstance.params.stopLossPct || 0.012));
-                        pos.takeProfitPrice = currentClose * (1 + (stratInstance.params.takeProfitPct || 0.015));
+                        pos.stopLossPrice = currentClose * (1 - (stratInstance.params.stopLossPct || 0.010));
+                        pos.takeProfitPrice = currentClose * (1 + (stratInstance.params.takeProfitPct || 0.012));
                     }
 
                     await dataStore.updatePosition(pos);
                     console.log(`[AutoTrade] 予約注文が開場に伴い約定しました: ${pos.symbolName} (${pos.symbol}) - 買値: ¥${pos.entryPrice}, 約定日時: ${pos.entryTime}`);
-                    notifier.showToast("buy", `🔔 【開場時約定】${pos.symbolName} (${pos.symbol})`, `東証開場に伴い予約注文が約定しました！(買値: ¥${pos.entryPrice.toLocaleString()} / ${pos.shares}株)`, 7000);
+                    notifier.showToast("buy", `🔔 【開場時約定】${pos.symbolName} (${pos.symbol})`, `東証開場に伴い予約注文が約定しました！(買値: ¥${pos.entryPrice.toLocaleString()} / ${pos.shares}株 | 利確+1.2% 損切-1.0%)`, 7000);
                 }
             }
         }
